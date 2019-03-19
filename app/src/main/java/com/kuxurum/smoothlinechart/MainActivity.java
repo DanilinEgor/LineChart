@@ -11,13 +11,13 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends Activity {
     private Data[] datas;
     private List<BigLineView> bigLineViews = new ArrayList<>();
+    private List<CheckBox> checkBoxes = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,10 +26,11 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         float[] to;
         float[] from;
+        boolean[] checked;
         if (savedInstanceState == null) {
             try {
                 datas = DataParser.parse(this);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 Log.e("LineView", "Exception: ", e);
             }
             from = new float[datas.length];
@@ -37,6 +38,15 @@ public class MainActivity extends Activity {
             for (int i = 0; i < from.length; i++) {
                 from[i] = 0.8f;
                 to[i] = 1f;
+            }
+
+            int linesCount = 0;
+            for (Data data : datas) {
+                linesCount += data.columns.length;
+            }
+            checked = new boolean[linesCount];
+            for (int i = 0; i < linesCount; i++) {
+                checked[i] = true;
             }
         } else {
             datas = (Data[]) savedInstanceState.getParcelableArray("data");
@@ -46,6 +56,15 @@ public class MainActivity extends Activity {
             for (int i = 0; i < from.length; i++) {
                 from[i] = savedInstanceState.getFloat(i + "_fromX");
                 to[i] = savedInstanceState.getFloat(i + "_toX");
+            }
+
+            int linesCount = 0;
+            for (Data data : datas) {
+                linesCount += data.columns.length;
+            }
+            checked = new boolean[linesCount];
+            for (int i = 0; i < linesCount; i++) {
+                checked[i] = savedInstanceState.getBoolean(i + "_checked");
             }
         }
 
@@ -57,6 +76,7 @@ public class MainActivity extends Activity {
         int orientation = getResources().getConfiguration().orientation;
         boolean isPortrait = orientation != Configuration.ORIENTATION_LANDSCAPE;
 
+        int counter = 0;
         for (int j = 0; j < datas.length; j++) {
             Data data = datas[j];
             LinearLayout root = new LinearLayout(this);
@@ -132,9 +152,11 @@ public class MainActivity extends Activity {
                     params.leftMargin = Utils.dpToPx(24);
                     cb.setLayoutParams(params);
                     cb.setCheckedColor(column.color);
-                    cb.setChecked(true);
+                    cb.setChecked(checked[counter++]);
                     layout.addView(cb);
                 }
+                checkBoxes.add(cb);
+
                 {
                     TextView tv = new TextView(this);
                     FrameLayout.LayoutParams params =
@@ -181,6 +203,8 @@ public class MainActivity extends Activity {
         for (BigLineView bigLineView : bigLineViews) {
             bigLineView.clearListeners();
         }
+        bigLineViews.clear();
+        checkBoxes.clear();
         super.onDestroy();
     }
 
@@ -191,6 +215,9 @@ public class MainActivity extends Activity {
         for (int i = 0; i < bigLineViews.size(); i++) {
             outState.putFloat(i + "_fromX", bigLineViews.get(i).getFromX());
             outState.putFloat(i + "_toX", bigLineViews.get(i).getToX());
+        }
+        for (int i = 0; i < checkBoxes.size(); i++) {
+            outState.putBoolean(i + "_checked", checkBoxes.get(i).isChecked());
         }
     }
 }

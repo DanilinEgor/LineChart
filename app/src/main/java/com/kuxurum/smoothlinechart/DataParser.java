@@ -3,78 +3,85 @@ package com.kuxurum.smoothlinechart;
 import android.content.Context;
 import android.graphics.Color;
 import android.util.Log;
-import com.squareup.moshi.JsonAdapter;
-import com.squareup.moshi.Moshi;
-import com.squareup.moshi.Types;
 import java.io.IOException;
-import java.lang.reflect.Type;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import okio.BufferedSource;
-import okio.Okio;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 class DataParser {
-    static Data[] parse(Context context) throws IOException {
+    static Data[] parse(Context context) throws IOException, JSONException {
         long start = System.currentTimeMillis();
-        BufferedSource buffer = Okio.buffer(
-                Okio.source(context.getResources().getAssets().open("chart_data.json")));
-        Moshi moshi = new Moshi.Builder().build();
-        Type type = Types.newParameterizedType(List.class, Wrapper.class);
-        JsonAdapter<List<Wrapper>> adapter = moshi.adapter(type);
-        List<Wrapper> wrappers = adapter.fromJson(buffer);
-        Log.v("Parser", "parser1 time=" + (System.currentTimeMillis() - start) + "ms");
-        Data[] res = new Data[wrappers.size()];
-        for (int k = 0; k < wrappers.size(); k++) {
-            Wrapper wrapper = wrappers.get(k);
-            Data data = new Data();
-            data.columns = new Data.Column[wrapper.columns.size()];
-            for (int i = 0; i < wrapper.columns.size(); i++) {
-                Data.Column column = new Data.Column();
-                List<Object> y = wrapper.columns.get(i);
-                long[] value = new long[y.size() - 1];
-                for (int j = 0; j < value.length; j++) {
-                    value[j] = ((Double) y.get(j + 1)).longValue();
+
+        InputStream stream = context.getResources().getAssets().open("chart_data.json");
+        int size = stream.available();
+        byte[] buffer = new byte[size];
+        stream.read(buffer);
+        stream.close();
+        String json = new String(buffer);
+        JSONArray array = new JSONArray(json);
+
+        Data[] res = new Data[array.length()];
+        for (int i = 0; i < array.length(); i++) {
+            Wrapper wrapper = new Wrapper();
+
+            JSONObject root = array.getJSONObject(i);
+            JSONArray columns = root.getJSONArray("columns");
+            for (int j = 0; j < columns.length(); j++) {
+                Wrapper.WrapperColumn column = new Wrapper.WrapperColumn();
+
+                JSONArray a = columns.getJSONArray(j);
+                column.label = a.getString(0);
+                column.values = new long[a.length() - 1];
+                for (int k = 1; k < a.length(); k++) {
+                    column.values[k - 1] = a.getLong(k);
                 }
-                column.value = value;
-
-                column.name = (String) y.get(0);
-
-                data.columns[i] = column;
+                wrapper.columns.add(column);
             }
 
-            for (int i = 0; i < data.columns.length; i++) {
-                Data.Column column = data.columns[i];
-                Data.Column tmp;
-                if (wrapper.types.get(column.name).equals("x") && i != 0) {
-                    tmp = column;
-                    data.columns[i] = data.columns[0];
-                    data.columns[0] = tmp;
+            Data data = new Data();
+            data.columns = new Data.Column[columns.length()];
+
+            JSONObject names = root.getJSONObject("names");
+            JSONObject colors = root.getJSONObject("colors");
+            JSONObject types = root.getJSONObject("types");
+
+            for (int j = 0; j < wrapper.columns.size(); j++) {
+                Wrapper.WrapperColumn column = wrapper.columns.get(j);
+                if (types.getString(column.label).equals("x") && j != 0) {
+                    Collections.swap(wrapper.columns, 0, j);
                     break;
                 }
             }
 
-            for (int i = 0; i < data.columns.length; i++) {
-                Data.Column column = data.columns[i];
-                String label = column.name;
-                column.name = wrapper.names.get(label);
+            for (int j = 0; j < wrapper.columns.size(); j++) {
+                Data.Column dataCol = new Data.Column();
 
-                String color = wrapper.colors.get(label);
-                if (color == null) color = "#000000";
-                column.color = Color.parseColor(color);
+                Wrapper.WrapperColumn column = wrapper.columns.get(j);
+                dataCol.value = column.values;
+                dataCol.name = names.optString(column.label);
+                dataCol.color = Color.parseColor(colors.optString(column.label, "#000000"));
+
+                data.columns[j] = dataCol;
             }
 
-            res[k] = data;
+            res[i] = data;
         }
 
         long end = System.currentTimeMillis();
-        Log.v("Parser", "parser2 time=" + (end - start) + "ms");
+        Log.v("Parser", "parser time=" + (end - start) + "ms");
         return res;
     }
 
-    static class Wrapper {
-        List<List<Object>> columns;
-        Map<String, String> types;
-        Map<String, String> names;
-        Map<String, String> colors;
+    private static class Wrapper {
+        List<WrapperColumn> columns = new ArrayList<>();
+
+        static class WrapperColumn {
+            String label;
+            long[] values;
+        }
     }
 }

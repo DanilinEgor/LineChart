@@ -84,6 +84,8 @@ public class LineView extends View {
     }
 
     private void init() {
+        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+
         _24dp = Utils.dpToPx(24);
         axisColor = Color.parseColor("#f0f0f0");
         axisColor2 = Color.parseColor("#e8e8e8");
@@ -127,7 +129,7 @@ public class LineView extends View {
         shadowP.setShadowLayer(4, 0, 0, Color.parseColor("#40000000"));
         shadowP.setColor(Color.WHITE);
         shadowP.setStyle(Paint.Style.FILL);
-        setLayerType(LAYER_TYPE_SOFTWARE, shadowP);
+        setLayerType(LAYER_TYPE_HARDWARE, shadowP);
 
         dateLabelP = new Paint(Paint.ANTI_ALIAS_FLAG);
         dateLabelP.setColor(Color.BLACK);
@@ -203,9 +205,11 @@ public class LineView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        long time = System.currentTimeMillis();
         super.onDraw(canvas);
+
+        long time = System.currentTimeMillis();
         Log.v("LineView", "====");
+        Log.v("LineView", "thread=" + Thread.currentThread().getName() + " " + hashCode());
 
         int paddingStart = getPaddingLeft();
         int paddingEnd = getPaddingRight();
@@ -743,8 +747,10 @@ public class LineView extends View {
                 }
                 pow *= 10;
             }
-        } else {
+        } else if (maxY > 0) {
             maxY = maxY - maxY % 10 + 10;
+        } else {
+            maxY = 0;
         }
 
         if (prevMaxY != maxY) {
