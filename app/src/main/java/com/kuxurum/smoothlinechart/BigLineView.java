@@ -3,9 +3,7 @@ package com.kuxurum.smoothlinechart;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.SparseArray;
@@ -19,9 +17,9 @@ public class BigLineView extends View {
     private static int MAX_ALPHA = 255;
     private Data data;
     private Paint p;
-    private Paint bp, bp2;
+    private Paint bp;
     private Paint fp, fp2;
-    private Path path = new Path();
+    private float[] points;
 
     private long minX, maxX;
     private long maxY, prevMaxY;
@@ -29,6 +27,7 @@ public class BigLineView extends View {
     private long step0, step0Time;
     private float step0k, step0b;
     private boolean step0Down;
+    private int borderW;
 
     private SparseArray<Long> lineToTime = new SparseArray<>();
     private SparseArray<Boolean> lineToUp = new SparseArray<>();
@@ -52,8 +51,7 @@ public class BigLineView extends View {
     }
 
     private void init() {
-        setMinimumWidth(Utils.dpToPx(100));
-        setMinimumHeight(Utils.dpToPx(100));
+        borderW = Utils.dpToPx(6);
 
         p = new Paint();
         p.setStyle(Paint.Style.STROKE);
@@ -61,22 +59,13 @@ public class BigLineView extends View {
         p.setAntiAlias(true);
 
         bp = new Paint();
-        bp.setColor(Color.parseColor("#00000000")); // #e57373
         bp.setStyle(Paint.Style.FILL);
-
-        bp2 = new Paint();
-        bp2.setColor(Color.parseColor("#00000000")); // #ba68c8
-        bp2.setStyle(Paint.Style.FILL);
 
         fp = new Paint();
         fp.setStyle(Paint.Style.FILL);
-        fp.setColor(Color.parseColor("#507da1"));
-        fp.setAlpha(25);
 
         fp2 = new Paint();
         fp2.setStyle(Paint.Style.FILL);
-        fp2.setColor(Color.parseColor("#507da1"));
-        fp2.setAlpha(50);
 
         setOnTouchListener(new OnTouchListener() {
             private boolean isStartPressed = false;
@@ -95,20 +84,23 @@ public class BigLineView extends View {
 
                 int w = getWidth() - paddingStart - paddingEnd;
 
-                float startBorder = w * fromX;
-                float endBorder = w * toX;
+                float startBorder = paddingStart + w * fromX;
+                float endBorder = paddingStart + w * toX;
 
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
                     startY = event.getY();
                     getParent().requestDisallowInterceptTouchEvent(true);
 
-                    if (event.getX() > startBorder - 20 && event.getX() < startBorder + 30) {
+                    if (event.getX() > startBorder - 2 * borderW
+                            && event.getX() < startBorder + borderW) {
                         isStartPressed = true;
                         Log.v("BigLineView", "pressed startBorder");
-                    } else if (event.getX() > endBorder - 20 && event.getX() < endBorder + 30) {
+                    } else if (event.getX() > endBorder - borderW
+                            && event.getX() < endBorder + 2 * borderW) {
                         isEndPressed = true;
                         Log.v("BigLineView", "pressed endBorder");
-                    } else if (event.getX() > startBorder + 30 && event.getX() < endBorder - 20) {
+                    } else if (event.getX() > startBorder + borderW
+                            && event.getX() < endBorder - borderW) {
                         isInsidePressed = true;
                         Log.v("BigLineView", "pressed inside");
                     } else {
@@ -117,23 +109,27 @@ public class BigLineView extends View {
                     startPressX = event.getX();
                     startFromX = fromX;
                     startToX = toX;
+                    Log.v("BigLineView", "startPressX=" + startPressX);
+                    Log.v("BigLineView", "startFromX=" + startFromX);
+                    Log.v("BigLineView", "startBorder=" + startBorder);
                 } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
-                    if (Math.abs(event.getY() - startY) > Utils.dpToPx(20)) {
+                    if (Math.abs(event.getY() - startY) > Utils.dpToPx(30)) {
                         getParent().requestDisallowInterceptTouchEvent(false);
                     }
 
-                    float newLabel = (event.getX() - paddingStart) / w;
-                    //Log.v("BigLineView", "newLabel=" + newLabel);
+                    Log.v("BigLineView", "event.getX()=" + event.getX());
                     //Log.v("BigLineView", "toX=" + toX);
                     //Log.v("BigLineView", "fromX=" + fromX);
+                    float diff = (event.getX() - startPressX) / w;
                     if (isStartPressed) {
-                        if (newLabel > toX - 0.01) return true;
-                        setFrom(newLabel);
+                        float newFromX = startFromX + diff;
+                        if (newFromX > toX - 0.01) return true;
+                        setFrom(newFromX);
                     } else if (isEndPressed) {
-                        if (newLabel < fromX + 0.01) return true;
-                        setTo(newLabel);
+                        float newToX = startToX + diff;
+                        if (newToX < fromX + 0.01) return true;
+                        setTo(newToX);
                     } else if (isInsidePressed) {
-                        float diff = (event.getX() - startPressX) / w;
                         float newFromX = startFromX + diff;
                         float newToX = startToX + diff;
                         if (newFromX < 0) {
@@ -160,6 +156,18 @@ public class BigLineView extends View {
         });
     }
 
+    void setChartBackgroundColor(int color) {
+        bp.setColor(color);
+    }
+
+    void setChartForegroundColor(int color) {
+        fp.setColor(color);
+    }
+
+    void setChartForegroundBorderColor(int color) {
+        fp2.setColor(color);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         long time = System.currentTimeMillis();
@@ -171,11 +179,9 @@ public class BigLineView extends View {
         int paddingBottom = getPaddingBottom();
 
         int w = getWidth() - paddingStart - paddingEnd;
-        int h = (int) (getHeight() - paddingBottom - paddingTop - Utils.dpToPx(6));
+        int h = (getHeight() - paddingBottom - paddingTop - Utils.dpToPx(6));
 
-        canvas.drawRect(0, 0, getWidth(), getHeight(), bp2);
-        canvas.drawRect(paddingStart, paddingTop, getWidth() - paddingEnd,
-                getHeight() - paddingBottom, bp);
+        canvas.drawRect(0, 0, getWidth(), getHeight(), bp);
         if (data.columns.length == 0) return;
 
         if (step0Time != 0L) {
@@ -193,18 +199,22 @@ public class BigLineView extends View {
         for (int j = 1; j < data.columns.length; j++) {
             Data.Column column = data.columns[j];
 
-            path.reset();
             int size = column.value.length;
             for (int i = 0; i < size; i++) {
                 float startX = w * (columnX.value[i] - minX) * 1f / (maxX - minX);
                 float startY = convertToY(h, column.value[i]);
 
-                //Log.v("BigLineView", "startX = " + startX + ", startY=" + startY);
-
                 if (i == 0) {
-                    path.moveTo(paddingStart, paddingTop + startY);
+                    points[4 * i] = startX;
+                    points[4 * i + 1] = startY;
+                } else if (i == size - 1) {
+                    points[4 * i - 2] = startX;
+                    points[4 * i - 1] = startY;
                 } else {
-                    path.lineTo(paddingStart + startX, paddingTop + startY);
+                    points[4 * i - 2] = startX;
+                    points[4 * i - 1] = startY;
+                    points[4 * i] = startX;
+                    points[4 * i + 1] = startY;
                 }
             }
 
@@ -222,12 +232,12 @@ public class BigLineView extends View {
                 }
                 p.setAlpha(alpha);
             } else if (lineDisabled[j]) {
-                p.setAlpha(0);
+                if (p.getAlpha() != 0) p.setAlpha(0);
             } else {
-                p.setAlpha(MAX_ALPHA);
+                if (p.getAlpha() != MAX_ALPHA) p.setAlpha(MAX_ALPHA);
             }
 
-            canvas.drawPath(path, p);
+            canvas.drawLines(points, p);
         }
 
         for (int j = 1; j < data.columns.length; j++) {
@@ -246,20 +256,21 @@ public class BigLineView extends View {
         }
 
         float startBorder = w * fromX;
-        float endBorder = Math.min(w * toX, w - 10);
+        float endBorder = Math.min(w * toX, w);
 
         canvas.drawRect(paddingStart, paddingTop, paddingStart + startBorder,
                 getHeight() - paddingBottom, fp);
-        canvas.drawRect(paddingStart + endBorder + 10, paddingTop, getWidth() - paddingEnd,
+        canvas.drawRect(paddingStart + endBorder, paddingTop, getWidth() - paddingEnd,
                 getHeight() - paddingBottom, fp);
-        canvas.drawRect(paddingStart + startBorder, paddingTop, paddingStart + startBorder + 10,
-                getHeight() - paddingBottom, fp2);
-        canvas.drawRect(paddingStart + endBorder, paddingTop, paddingStart + endBorder + 10,
-                getHeight() - paddingBottom, fp2);
-        canvas.drawRect(paddingStart + startBorder + 10, paddingTop, paddingStart + endBorder,
-                paddingTop + 5, fp2);
-        canvas.drawRect(paddingStart + startBorder + 10, getHeight() - paddingBottom - 5,
+        canvas.drawRect(paddingStart + startBorder, paddingTop,
+                paddingStart + startBorder + Utils.dpToPx(6), getHeight() - paddingBottom, fp2);
+        canvas.drawRect(paddingStart + endBorder - Utils.dpToPx(6), paddingTop,
                 paddingStart + endBorder, getHeight() - paddingBottom, fp2);
+        canvas.drawRect(paddingStart + startBorder + Utils.dpToPx(6), paddingTop,
+                paddingStart + endBorder - Utils.dpToPx(6), paddingTop + Utils.dpToPx(2), fp2);
+        canvas.drawRect(paddingStart + startBorder + Utils.dpToPx(6),
+                getHeight() - paddingBottom - Utils.dpToPx(2),
+                paddingStart + endBorder - Utils.dpToPx(6), getHeight() - paddingBottom, fp2);
 
         //Log.v("BigLineView", "time=" + (System.currentTimeMillis() - time) + "ms");
 
@@ -284,6 +295,7 @@ public class BigLineView extends View {
         lineDisabled = new boolean[data.columns.length];
 
         Data.Column columnX = data.columns[0];
+        points = new float[(columnX.value.length - 1) * 4];
         minX = columnX.value[0];
         maxX = columnX.value[columnX.value.length - 1];
         setFrom(0f);
@@ -338,7 +350,7 @@ public class BigLineView extends View {
                 }
                 pow *= 10;
             }
-        } else {
+        } else if (maxY > 0) {
             maxY = maxY - maxY % 10 + 10;
         }
 

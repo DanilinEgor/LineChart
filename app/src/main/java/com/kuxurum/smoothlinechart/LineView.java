@@ -5,7 +5,6 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.util.AttributeSet;
@@ -36,14 +35,14 @@ public class LineView extends View {
     private Paint vertAxisP;
     private Paint circleP;
     private Paint shadowP;
+    private Paint labelP;
     private Paint dateLabelP;
     private Paint dataP;
     private Paint dataLabelP;
-    private Path path = new Path();
+    private float[] points;
 
     private int fromIndex;
     private int toIndex;
-    private float drawX;
 
     private long minX, maxX;
     private long maxY, prevMaxY;
@@ -66,7 +65,7 @@ public class LineView extends View {
     private int selectedIndex = -1;
 
     float _24dp;
-    private int axisColor, axisColor2;
+    private int axisColor, axisColorDark;
 
     public LineView(Context context) {
         super(context);
@@ -84,21 +83,14 @@ public class LineView extends View {
     }
 
     private void init() {
-        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-
         _24dp = Utils.dpToPx(24);
-        axisColor = Color.parseColor("#f0f0f0");
-        axisColor2 = Color.parseColor("#e8e8e8");
-
-        setMinimumWidth(Utils.dpToPx(100));
-        setMinimumHeight(Utils.dpToPx(100));
 
         p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(5f);
+        p.setStrokeCap(Paint.Cap.ROUND);
 
         bp = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bp.setColor(Color.WHITE);
         bp.setStyle(Paint.Style.FILL);
 
         bp2 = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -109,15 +101,12 @@ public class LineView extends View {
         axisP.setStrokeWidth(Utils.dpToPx(1));
 
         vertAxisP = new Paint(Paint.ANTI_ALIAS_FLAG);
-        vertAxisP.setColor(Color.parseColor("#e4e9ed"));
         vertAxisP.setStrokeWidth(Utils.dpToPx(1.5f));
 
         textP = new Paint(Paint.ANTI_ALIAS_FLAG);
-        textP.setColor(Color.parseColor("#96a1a8"));
         textP.setTextSize(Utils.dpToPx(12));
 
         xTextP = new Paint(Paint.ANTI_ALIAS_FLAG);
-        xTextP.setColor(Color.parseColor("#96a1a8"));
         xTextP.setTextSize(Utils.dpToPx(12));
         xTextP.setTextAlign(Paint.Align.CENTER);
 
@@ -127,12 +116,13 @@ public class LineView extends View {
 
         shadowP = new Paint(Paint.ANTI_ALIAS_FLAG);
         shadowP.setShadowLayer(4, 0, 0, Color.parseColor("#40000000"));
-        shadowP.setColor(Color.WHITE);
         shadowP.setStyle(Paint.Style.FILL);
-        setLayerType(LAYER_TYPE_HARDWARE, shadowP);
+
+        labelP = new Paint(Paint.ANTI_ALIAS_FLAG);
+        labelP.setShadowLayer(4, 0, 0, Color.parseColor("#40000000"));
+        labelP.setStyle(Paint.Style.FILL);
 
         dateLabelP = new Paint(Paint.ANTI_ALIAS_FLAG);
-        dateLabelP.setColor(Color.BLACK);
         dateLabelP.setTextSize(Utils.dpToPx(13));
         dateLabelP.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
 
@@ -170,7 +160,7 @@ public class LineView extends View {
                     if (event.getX() < paddingStart || event.getX() > getWidth() - paddingEnd) {
                         return true;
                     }
-                    if (Math.abs(event.getY() - startY) > Utils.dpToPx(20)) {
+                    if (Math.abs(event.getY() - startY) > Utils.dpToPx(30)) {
                         getParent().requestDisallowInterceptTouchEvent(false);
                     }
                     float v1 = (event.getX() - paddingStart) / w;
@@ -187,7 +177,6 @@ public class LineView extends View {
                     if (Math.abs(columnX[round] - x) > Math.abs(columnX[round1] - x)) {
                         round = round1;
                     }
-                    drawX = event.getX();
                     int newIndex = Math.min(toIndex - 1, Math.max(round, fromIndex + 1));
                     if (selectedIndex != newIndex) needToInvalidate = true;
                     selectedIndex = newIndex;
@@ -203,13 +192,43 @@ public class LineView extends View {
         });
     }
 
+    void setChartBackgroundColor(int color) {
+        bp.setColor(color);
+        bp2.setColor(color);
+    }
+
+    void setAxisColor(int color) {
+        axisColor = color;
+    }
+
+    void setAxisColorDark(int color) {
+        axisColorDark = color;
+    }
+
+    void setVertAxisColor(int color) {
+        vertAxisP.setColor(color);
+    }
+
+    void setAxisTextColor(int color) {
+        textP.setColor(color);
+        xTextP.setColor(color);
+    }
+
+    void setChartLabelColor(int color) {
+        labelP.setColor(color);
+    }
+
+    void setChartDateLabelColor(int color) {
+        dateLabelP.setColor(color);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
         long time = System.currentTimeMillis();
-        Log.v("LineView", "====");
-        Log.v("LineView", "thread=" + Thread.currentThread().getName() + " " + hashCode());
+
+        //Log.v("LineView", "====");
 
         int paddingStart = getPaddingLeft();
         int paddingEnd = getPaddingRight();
@@ -224,9 +243,6 @@ public class LineView extends View {
                 - Utils.dpToPx(6));
 
         canvas.drawRect(0, 0, getWidth(), getHeight(), bp2);
-        canvas.drawRect(paddingStart, paddingTop, getWidth() - paddingEnd,
-                getHeight() - paddingBottom, bp);
-
         canvas.clipRect(paddingStart, paddingTop, getWidth() - paddingEnd,
                 getHeight() - paddingBottom);
 
@@ -263,11 +279,12 @@ public class LineView extends View {
             axisP.setColor(axisColor);
             axisP.setAlpha(alpha);
             textP.setAlpha(alpha);
+            String[] axisTexts = getAxisTexts(yKey);
             for (int i = 1; i < 6; i++) {
                 float y = convertToY(h, (long) (i * yKey / 5f));
                 canvas.drawLine(paddingStart + _24dp, paddingTop + y,
                         getWidth() - paddingEnd - _24dp, paddingTop + y, axisP);
-                canvas.drawText(String.valueOf(yKey / 5 * i), paddingStart + _24dp,
+                canvas.drawText(axisTexts[i - 1], paddingStart + _24dp,
                         paddingTop + y - textP.descent() - Utils.dpToPx(3), textP);
             }
         }
@@ -285,6 +302,7 @@ public class LineView extends View {
         //Log.v("LineView", "yToTime.get(maxY)=" + yToTime.get(maxY));
         if (!maxWasDrawn && maxY != 0f) {
             //Log.v("LineView", "maxY=" + maxY + " normal alpha=" + axisP.getAlpha());
+            String[] axisTexts = getAxisTexts(maxY);
             for (int i = 1; i < 6; i++) {
                 axisP.setColor(axisColor);
                 axisP.setAlpha(MAX_ALPHA);
@@ -292,13 +310,13 @@ public class LineView extends View {
                 float y = convertToY(h, (long) (i * maxY / 5f));
                 canvas.drawLine(paddingStart + _24dp, paddingTop + y,
                         getWidth() - paddingEnd - _24dp, paddingTop + y, axisP);
-                canvas.drawText(String.valueOf(maxY / 5 * i), paddingStart + _24dp,
+                canvas.drawText(axisTexts[i - 1], paddingStart + _24dp,
                         paddingTop + y - textP.descent() - Utils.dpToPx(3), textP);
             }
         }
 
         {
-            axisP.setColor(axisColor2);
+            axisP.setColor(axisColorDark);
             axisP.setAlpha(MAX_ALPHA);
             textP.setAlpha(MAX_ALPHA);
             float y = h - 1;
@@ -465,68 +483,7 @@ public class LineView extends View {
             }
         }
 
-        for (int j = 1; j < data.columns.length; j++) {
-            Data.Column column = data.columns[j];
-
-            path.reset();
-
-            //Log.v("LineView", "lineToTime.get(j)=" + lineToTime.get(j));
-            p.setColor(column.color);
-            if (lineToTime.get(j) != null) {
-                int alpha;
-                if (lineToUp.get(j)) {
-                    alpha = Math.min(
-                            (int) (1f * MAX_ALPHA / ANIMATION_DURATION * (time - lineToTime.get(
-                                    j))), MAX_ALPHA);
-                } else {
-                    alpha = Math.max(
-                            (int) (1f * MAX_ALPHA / ANIMATION_DURATION * (lineToTime.get(j) - time
-                                    + ANIMATION_DURATION)), 0);
-                }
-                p.setAlpha(alpha);
-            } else if (lineDisabled[j]) {
-                p.setAlpha(0);
-            } else {
-                p.setAlpha(MAX_ALPHA);
-            }
-            long time1 = System.nanoTime();
-            for (int i = fromIndex; i < toIndex; i++) {
-                float startX = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
-                float startY = convertToY(h, column.value[i]);
-
-                if (i == fromIndex) {
-                    path.moveTo(paddingStart + startX, paddingTop + startY);
-                } else {
-                    path.lineTo(paddingStart + startX, paddingTop + startY);
-                }
-            }
-            canvas.drawPath(path, p);
-            Log.v("LineView", "time1=" + ((System.nanoTime() - time1) / 1_000_000f) + "ms");
-
-            if (selectedIndex != -1) {
-                float x = w * (columnX.value[selectedIndex] - fromX) * 1f / (toX - fromX);
-                float y = convertToY(h, column.value[selectedIndex]);
-
-                circleP.setColor(column.color);
-                if (lineDisabled[j]) {
-                    circleP.setAlpha(0);
-                    bp.setAlpha(0);
-                } else {
-                    circleP.setAlpha(MAX_ALPHA);
-                    bp.setAlpha(MAX_ALPHA);
-                }
-
-                canvas.drawCircle(paddingStart + x, paddingTop + y, 10, circleP);
-                canvas.drawCircle(paddingStart + x, paddingTop + y, 8, bp);
-            }
-        }
-
-        if (selectedIndex != -1) {
-            float x = w * (columnX.value[selectedIndex] - fromX) * 1f / (toX - fromX);
-            drawLabel(canvas, paddingStart + x, paddingTop + Utils.dpToPx(5),
-                    paddingStart + Utils.dpToPx(5), getWidth() - paddingEnd - Utils.dpToPx(5),
-                    selectedIndex);
-        }
+        drawLines(canvas, time);
 
         for (int j = 1; j < data.columns.length; j++) {
             Long lineTime = lineToTime.get(j);
@@ -552,6 +509,109 @@ public class LineView extends View {
                 || yToTime.size() != 0
                 || step0Time != 0L) {
             postInvalidateOnAnimation();
+        }
+    }
+
+    private String[] getAxisTexts(long maxValue) {
+        String[] res = new String[5];
+        if (maxValue > 1_000_000_000) {
+            for (int i = 1; i < 6; i++) {
+                long v = maxValue / 5 * i;
+                res[i - 1] = String.valueOf((v - v % 10_000_000) / 1_000_000_000f) + "B";
+            }
+        } else if (maxValue > 1_000_000) {
+            for (int i = 1; i < 6; i++) {
+                long v = maxValue / 5 * i;
+                res[i - 1] = String.valueOf((v - v % 10_000) / 1_000_000f) + "M";
+            }
+        } else {
+            for (int i = 1; i < 6; i++) {
+                long v = maxValue / 5 * i;
+                res[i - 1] = String.valueOf(v);
+            }
+        }
+        return res;
+    }
+
+    private void drawLines(Canvas canvas, long time) {
+        int paddingStart = getPaddingLeft();
+        int paddingEnd = getPaddingRight();
+        int paddingTop = getPaddingTop();
+        int paddingBottom = getPaddingBottom();
+
+        int w = getWidth() - paddingStart - paddingEnd;
+        int h = (int) (getHeight()
+                - paddingBottom
+                - paddingTop
+                - xTextP.getTextSize()
+                - Utils.dpToPx(6));
+
+        Data.Column columnX = data.columns[0];
+        for (int j = 1; j < data.columns.length; j++) {
+            Data.Column column = data.columns[j];
+
+            //Log.v("LineView", "lineToTime.get(j)=" + lineToTime.get(j));
+            p.setColor(column.color);
+            if (lineToTime.get(j) != null) {
+                int alpha;
+                if (lineToUp.get(j)) {
+                    alpha = Math.min(
+                            (int) (1f * MAX_ALPHA / ANIMATION_DURATION * (time - lineToTime.get(
+                                    j))), MAX_ALPHA);
+                } else {
+                    alpha = Math.max(
+                            (int) (1f * MAX_ALPHA / ANIMATION_DURATION * (lineToTime.get(j) - time
+                                    + ANIMATION_DURATION)), 0);
+                }
+                p.setAlpha(alpha);
+            } else if (lineDisabled[j]) {
+                if (p.getAlpha() != 0) p.setAlpha(0);
+            } else {
+                if (p.getAlpha() != MAX_ALPHA) p.setAlpha(MAX_ALPHA);
+            }
+
+            for (int i = fromIndex; i < toIndex; i++) {
+                float startX = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
+                float startY = convertToY(h, column.value[i]);
+
+                if (i == fromIndex) {
+                    points[4 * i] = startX;
+                    points[4 * i + 1] = startY;
+                } else if (i == toIndex - 1) {
+                    points[4 * i - 2] = startX;
+                    points[4 * i - 1] = startY;
+                } else {
+                    points[4 * i - 2] = startX;
+                    points[4 * i - 1] = startY;
+                    points[4 * i] = startX;
+                    points[4 * i + 1] = startY;
+                }
+            }
+            canvas.drawLines(points, 4 * fromIndex, (toIndex - fromIndex - 1) * 4, p);
+
+            if (selectedIndex != -1) {
+                float x = w * (columnX.value[selectedIndex] - fromX) * 1f / (toX - fromX);
+                float y = convertToY(h, column.value[selectedIndex]);
+
+                circleP.setColor(column.color);
+                if (lineDisabled[j]) {
+                    circleP.setAlpha(0);
+                    bp.setAlpha(0);
+                } else {
+                    circleP.setAlpha(MAX_ALPHA);
+                    bp.setAlpha(MAX_ALPHA);
+                }
+
+                canvas.drawCircle(paddingStart + x, paddingTop + y, Utils.dpToPx(3), circleP);
+                canvas.drawCircle(paddingStart + x, paddingTop + y, Utils.dpToPx(2), bp);
+            }
+        }
+
+        if (selectedIndex != -1) {
+            float x = w * (columnX.value[selectedIndex] - fromX) * 1f / (toX - fromX);
+            drawLabel(canvas, paddingStart + x, paddingTop + Utils.dpToPx(5),
+                    paddingStart + Utils.dpToPx(5), getWidth() - paddingEnd - Utils.dpToPx(5),
+                    selectedIndex);
         }
     }
 
@@ -603,9 +663,10 @@ public class LineView extends View {
         float startX = Math.min(maxX - w, Math.max(minX, x0 - w / 6f));
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            canvas.drawRoundRect(startX, y0, startX + w, y0 + h, 10, 10, shadowP);
+            canvas.drawRoundRect(startX, y0, startX + w, y0 + h, 10, 10, labelP);
         } else {
-            canvas.drawRect(startX, y0, startX + w, y0 + h, shadowP);
+            canvas.drawRect(startX - 1, y0 - 1, startX + w + 1, y0 + h + 1, shadowP);
+            canvas.drawRect(startX, y0, startX + w, y0 + h, labelP);
         }
 
         canvas.drawText(dateText, startX + paddingStart, y0 + paddingTop - dateLabelPFM.ascent,
@@ -688,6 +749,7 @@ public class LineView extends View {
         lineDisabled = new boolean[data.columns.length];
 
         Data.Column columnX = data.columns[0];
+        points = new float[(columnX.value.length - 1) * 4];
         minX = columnX.value[0];
         maxX = columnX.value[columnX.value.length - 1];
         setFrom(0f);
@@ -749,8 +811,6 @@ public class LineView extends View {
             }
         } else if (maxY > 0) {
             maxY = maxY - maxY % 10 + 10;
-        } else {
-            maxY = 0;
         }
 
         if (prevMaxY != maxY) {

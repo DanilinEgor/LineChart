@@ -5,6 +5,30 @@
     <color name="colorAccent">#507da1</color>
     <color name="colorWindowBackground">#f0f0f0</color>
     <color name="chartBackground">#ffffff</color>
-    <color name="bg_pressed">#20000000</color>
+    <color name="chartLabelBackground">#ffffff</color>
+    <color name="chartDateLabelColor">#212121</color>
     <color name="textColorPrimary">#000000</color>
+    <color name="axisColor">#f0f0f0</color>
+    <color name="axisColorDark">#e8e8e8</color>
+    <color name="vertAxisColor">#e4e9ed</color>
+    <color name="axisTextColor">#96a1a8</color>
+    <color name="foregroundColor">#b0f0f0f0</color>
+    <color name="foregroundBorderColor">#32507da1</color>
+
+    <color name="night_colorPrimary">#212d3b</color>
+    <color name="night_colorPrimaryDark">#1a242e</color>
+    <color name="night_colorAccent">#212d3b</color>
+    <color name="night_colorWindowBackground">#151d26</color>
+    <color name="night_chartBackground">#1d2733</color>
+    <color name="night_chartLabelBackground">#1f2a36</color>
+    <color name="night_chartDateLabelColor">#e6eff5</color>
+    <color name="night_textColorPrimary">#ffffff</color>
+    <color name="night_axisColor">#151e29</color>
+    <color name="night_axisColorDark">#101924</color>
+    <color name="night_vertAxisColor">#121a24</color>
+    <color name="night_axisTextColor">#506270</color>
+    <color name="night_foregroundColor">#b00b131e</color>
+    <color name="night_foregroundBorderColor">#32507da1</color>
+
+    <color name="bg_pressed">#20000000</color>
 </resources>

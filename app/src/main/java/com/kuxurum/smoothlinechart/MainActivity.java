@@ -1,23 +1,39 @@
 package com.kuxurum.smoothlinechart;
 
+import android.animation.PropertyValuesHolder;
+import android.animation.ValueAnimator;
 import android.app.Activity;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.content.res.Resources;
+import android.graphics.drawable.ColorDrawable;
+import android.os.Build;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends Activity {
     private Data[] datas;
+    private ScrollView scrollView;
+    private List<LinearLayout> roots = new ArrayList<>();
+    private List<LineView> lineViews = new ArrayList<>();
     private List<BigLineView> bigLineViews = new ArrayList<>();
     private List<CheckBox> checkBoxes = new ArrayList<>();
+    private List<TextView> textViews = new ArrayList<>();
+    private List<View> dividers = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,7 +52,7 @@ public class MainActivity extends Activity {
             from = new float[datas.length];
             to = new float[datas.length];
             for (int i = 0; i < from.length; i++) {
-                from[i] = 0.8f;
+                from[i] = 0.75f;
                 to[i] = 1f;
             }
 
@@ -68,10 +84,8 @@ public class MainActivity extends Activity {
             }
         }
 
-        int dividerColor = getResources().getColor(R.color.bg_pressed);
-        int textColor = getResources().getColor(R.color.textColorPrimary);
-        int chartBg = getResources().getColor(R.color.chartBackground);
         ViewGroup mainRoot = findViewById(R.id.layout_root);
+        scrollView = findViewById(R.id.sv);
 
         int orientation = getResources().getConfiguration().orientation;
         boolean isPortrait = orientation != Configuration.ORIENTATION_LANDSCAPE;
@@ -79,7 +93,9 @@ public class MainActivity extends Activity {
         int counter = 0;
         for (int j = 0; j < datas.length; j++) {
             Data data = datas[j];
+
             LinearLayout root = new LinearLayout(this);
+            roots.add(root);
             {
                 ViewGroup.MarginLayoutParams params =
                         new ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
@@ -89,10 +105,10 @@ public class MainActivity extends Activity {
                 }
                 root.setLayoutParams(params);
                 root.setOrientation(LinearLayout.VERTICAL);
-                root.setBackgroundColor(chartBg);
             }
 
             final LineView lineView = new LineView(this);
+            lineViews.add(lineView);
             {
                 lineView.setLayoutParams(
                         new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
@@ -102,10 +118,11 @@ public class MainActivity extends Activity {
             root.addView(lineView);
 
             final BigLineView bigLineView = new BigLineView(this);
+            bigLineViews.add(bigLineView);
             {
                 ViewGroup.MarginLayoutParams params =
                         new ViewGroup.MarginLayoutParams(ViewGroup.MarginLayoutParams.MATCH_PARENT,
-                                Utils.dpToPx(55));
+                                Utils.dpToPx(50));
                 params.topMargin = Utils.dpToPx(8);
                 params.leftMargin = Utils.dpToPx(24);
                 params.rightMargin = Utils.dpToPx(24);
@@ -124,7 +141,6 @@ public class MainActivity extends Activity {
                 });
                 bigLineView.setTo(to[j]);
                 bigLineView.setFrom(from[j]);
-                bigLineViews.add(bigLineView);
             }
             root.addView(bigLineView);
 
@@ -145,6 +161,7 @@ public class MainActivity extends Activity {
                 }
 
                 final CheckBox cb = new CheckBox(this);
+                checkBoxes.add(cb);
                 {
                     FrameLayout.LayoutParams params =
                             new FrameLayout.LayoutParams(Utils.dpToPx(18), Utils.dpToPx(18));
@@ -155,10 +172,10 @@ public class MainActivity extends Activity {
                     cb.setChecked(checked[counter++]);
                     layout.addView(cb);
                 }
-                checkBoxes.add(cb);
 
                 {
                     TextView tv = new TextView(this);
+                    textViews.add(tv);
                     FrameLayout.LayoutParams params =
                             new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                                     ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -166,7 +183,6 @@ public class MainActivity extends Activity {
                     params.gravity = Gravity.CENTER_VERTICAL;
                     tv.setLayoutParams(params);
                     tv.setText(column.name);
-                    tv.setTextColor(textColor);
                     tv.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
                     layout.addView(tv);
                 }
@@ -184,18 +200,172 @@ public class MainActivity extends Activity {
 
                 if (i != data.columns.length - 1) {
                     View divider = new View(this);
+                    dividers.add(divider);
                     FrameLayout.LayoutParams params =
                             new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                                     Utils.dpToPx(1));
                     params.leftMargin = Utils.dpToPx(72);
                     divider.setLayoutParams(params);
-                    divider.setBackgroundColor(dividerColor);
                     root.addView(divider);
                 }
             }
 
             mainRoot.addView(root);
         }
+
+        applyColor();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_night) {
+            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+            boolean isDay = preferences.getBoolean("day", true);
+            preferences.edit().putBoolean("day", !isDay).apply();
+            applyColor();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void applyColor() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean isDay = preferences.getBoolean("day", true);
+
+        Resources res = getResources();
+        int textColor = res.getColor(R.color.textColorPrimary);
+        int nightTextColor = res.getColor(R.color.night_textColorPrimary);
+        int chartBg = res.getColor(R.color.chartBackground);
+        int nightChartBg = res.getColor(R.color.night_chartBackground);
+        int windowBg = res.getColor(R.color.colorWindowBackground);
+        int nightWindowBg = res.getColor(R.color.night_colorWindowBackground);
+        int axisColor = res.getColor(R.color.axisColor);
+        int nightAxisColor = res.getColor(R.color.night_axisColor);
+        int axisColorDark = res.getColor(R.color.axisColorDark);
+        int nightAxisColorDark = res.getColor(R.color.night_axisColorDark);
+        int vertAxisColor = res.getColor(R.color.vertAxisColor);
+        int nightVertAxisColor = res.getColor(R.color.night_vertAxisColor);
+        int axisTextColor = res.getColor(R.color.axisTextColor);
+        int nightAxisTextColor = res.getColor(R.color.night_axisTextColor);
+        int chartLabelBackground = res.getColor(R.color.chartLabelBackground);
+        int nightChartLabelBackground = res.getColor(R.color.night_chartLabelBackground);
+        int chartDateLabelColor = res.getColor(R.color.chartDateLabelColor);
+        int nightChartDateLabelColor = res.getColor(R.color.night_chartDateLabelColor);
+        int foregroundColor = res.getColor(R.color.foregroundColor);
+        int nightForegroundColor = res.getColor(R.color.night_foregroundColor);
+        int foregroundBorderColor = res.getColor(R.color.foregroundBorderColor);
+        int nightForegroundBorderColor = res.getColor(R.color.night_foregroundBorderColor);
+        int colorPrimary = res.getColor(R.color.colorPrimary);
+        int nightColorPrimary = res.getColor(R.color.night_colorPrimary);
+        int colorPrimaryDark = res.getColor(R.color.colorPrimaryDark);
+        int nightColorPrimaryDark = res.getColor(R.color.night_colorPrimaryDark);
+
+        PropertyValuesHolder textColorP =
+                generateProperty("textColor", isDay, textColor, nightTextColor);
+        PropertyValuesHolder chartBgP = generateProperty("chartBg", isDay, chartBg, nightChartBg);
+        PropertyValuesHolder windowBgP =
+                generateProperty("windowBg", isDay, windowBg, nightWindowBg);
+        PropertyValuesHolder axisColorP =
+                generateProperty("axisColor", isDay, axisColor, nightAxisColor);
+        PropertyValuesHolder axisColorDarkP =
+                generateProperty("axisColorDark", isDay, axisColorDark, nightAxisColorDark);
+        PropertyValuesHolder vertAxisColorP =
+                generateProperty("vertAxisColor", isDay, vertAxisColor, nightVertAxisColor);
+        PropertyValuesHolder axisTextColorP =
+                generateProperty("axisTextColor", isDay, axisTextColor, nightAxisTextColor);
+        PropertyValuesHolder chartLabelBackgroundP =
+                generateProperty("chartLabelBackground", isDay, chartLabelBackground,
+                        nightChartLabelBackground);
+        PropertyValuesHolder chartDateLabelColorP =
+                generateProperty("chartDateLabelColor", isDay, chartDateLabelColor,
+                        nightChartDateLabelColor);
+        PropertyValuesHolder foregroundColorP =
+                generateProperty("foregroundColor", isDay, foregroundColor, nightForegroundColor);
+        PropertyValuesHolder foregroundBorderColorP =
+                generateProperty("foregroundBorderColor", isDay, foregroundBorderColor,
+                        nightForegroundBorderColor);
+        PropertyValuesHolder colorPrimaryP =
+                generateProperty("colorPrimary", isDay, colorPrimary, nightColorPrimary);
+        PropertyValuesHolder colorPrimaryDarkP =
+                generateProperty("colorPrimaryDark", isDay, colorPrimaryDark,
+                        nightColorPrimaryDark);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        }
+
+        final ValueAnimator anim =
+                ValueAnimator.ofPropertyValuesHolder(textColorP, chartBgP, windowBgP, axisColorP,
+                        axisColorDarkP, vertAxisColorP, axisTextColorP, chartLabelBackgroundP,
+                        chartDateLabelColorP, foregroundColorP, foregroundBorderColorP,
+                        colorPrimaryP, colorPrimaryDarkP);
+        anim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                int textColor = (int) animation.getAnimatedValue("textColor");
+                int chartBg = (int) animation.getAnimatedValue("chartBg");
+                int windowBg = (int) animation.getAnimatedValue("windowBg");
+                int axisColor = (int) animation.getAnimatedValue("axisColor");
+                int axisColorDark = (int) animation.getAnimatedValue("axisColorDark");
+                int vertAxisColor = (int) animation.getAnimatedValue("vertAxisColor");
+                int axisTextColor = (int) animation.getAnimatedValue("axisTextColor");
+                int chartLabelBackground = (int) animation.getAnimatedValue("chartLabelBackground");
+                int chartDateLabelColor = (int) animation.getAnimatedValue("chartDateLabelColor");
+                int foregroundColor = (int) animation.getAnimatedValue("foregroundColor");
+                int foregroundBorderColor =
+                        (int) animation.getAnimatedValue("foregroundBorderColor");
+                int colorPrimary = (int) animation.getAnimatedValue("colorPrimary");
+                int colorPrimaryDark = (int) animation.getAnimatedValue("colorPrimaryDark");
+
+                for (LinearLayout root : roots) {
+                    root.setBackgroundColor(chartBg);
+                }
+                for (LineView lineView : lineViews) {
+                    lineView.setAxisColor(axisColor);
+                    lineView.setAxisColorDark(axisColorDark);
+                    lineView.setVertAxisColor(vertAxisColor);
+                    lineView.setAxisTextColor(axisTextColor);
+                    lineView.setChartLabelColor(chartLabelBackground);
+                    lineView.setChartDateLabelColor(chartDateLabelColor);
+                    lineView.setChartBackgroundColor(chartBg);
+                    lineView.invalidate();
+                }
+                for (BigLineView bigLineView : bigLineViews) {
+                    bigLineView.setChartBackgroundColor(chartBg);
+                    bigLineView.setChartForegroundColor(foregroundColor);
+                    bigLineView.setChartForegroundBorderColor(foregroundBorderColor);
+                    bigLineView.invalidate();
+                }
+                for (TextView textView : textViews) {
+                    textView.setTextColor(textColor);
+                }
+                for (View divider : dividers) {
+                    divider.setBackgroundColor(windowBg);
+                }
+
+                scrollView.setBackgroundColor(windowBg);
+
+                getActionBar().setBackgroundDrawable(new ColorDrawable(colorPrimary));
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    getWindow().setStatusBarColor(colorPrimaryDark);
+                }
+            }
+        });
+        anim.setDuration(300);
+        anim.start();
+    }
+
+    private PropertyValuesHolder generateProperty(String name, boolean isDay, int dayColor,
+            int nightColor) {
+        return PropertyValuesHolder.ofObject(name, ArgbEvaluator.getInstance(),
+                isDay ? dayColor : nightColor, isDay ? nightColor : dayColor);
     }
 
     @Override
@@ -219,5 +389,9 @@ public class MainActivity extends Activity {
         for (int i = 0; i < checkBoxes.size(); i++) {
             outState.putBoolean(i + "_checked", checkBoxes.get(i).isChecked());
         }
+    }
+
+    interface AnimationListener {
+        void onUpdate(int color);
     }
 }
