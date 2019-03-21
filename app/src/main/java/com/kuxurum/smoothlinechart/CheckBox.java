@@ -1,21 +1,24 @@
 package com.kuxurum.smoothlinechart;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.os.Build;
+import android.graphics.RectF;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 
 public class CheckBox extends View {
-    private boolean isChecked;
-    private Paint bp, p;
-    private int checkedColor;
+    private boolean isChecked = false;
+    private Paint bgp, bp, p;
     private Path path = new Path();
-
+    private ValueAnimator progressAnimator;
+    private RectF rectF = new RectF();
     private float _2dp;
+    private float progress = 0f;
 
     public CheckBox(Context context) {
         super(context);
@@ -35,21 +38,24 @@ public class CheckBox extends View {
     private void init() {
         _2dp = Utils.dpToPx(2);
 
-        checkedColor = Color.parseColor("#ff0000");
+        bp = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bp.setStyle(Paint.Style.FILL);
 
-        bp = new Paint();
-        bp.setColor(checkedColor);
-        bp.setAntiAlias(true);
+        bgp = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bgp.setStyle(Paint.Style.FILL);
 
-        p = new Paint();
+        p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setColor(Color.WHITE);
         p.setStyle(Paint.Style.STROKE);
-        p.setAntiAlias(true);
         p.setStrokeWidth(_2dp);
     }
 
+    public void setBgColor(int color) {
+        bgp.setColor(color);
+        invalidate();
+    }
+
     public void setCheckedColor(int checkedColor) {
-        this.checkedColor = checkedColor;
         bp.setColor(checkedColor);
         invalidate();
     }
@@ -57,7 +63,22 @@ public class CheckBox extends View {
     public void setChecked(boolean checked) {
         if (checked == isChecked) return;
         isChecked = checked;
-        invalidate();
+
+        if (progressAnimator != null) {
+            progressAnimator.cancel();
+        }
+
+        progressAnimator = ValueAnimator.ofFloat(isChecked ? 0 : 1, isChecked ? 1 : 0);
+        progressAnimator.setDuration(300);
+        progressAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                Log.v("cb", "progress=" + progress);
+                progress = (float) animation.getAnimatedValue();
+                invalidate();
+            }
+        });
+        progressAnimator.start();
     }
 
     public boolean isChecked() {
@@ -66,26 +87,46 @@ public class CheckBox extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        if (isChecked) {
-            bp.setStyle(Paint.Style.FILL_AND_STROKE);
-        } else {
-            bp.setStyle(Paint.Style.STROKE);
-            bp.setStrokeWidth(_2dp);
-        }
         int w = getWidth();
         int h = getHeight();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            canvas.drawRoundRect(0, 0, w, h, _2dp, _2dp, bp);
+
+        float b;
+        if (progress <= 0.5f) {
+            b = 2 * _2dp * progress;
         } else {
-            canvas.drawRect(0, 0, w, h, bp);
+            b = 2 * _2dp * (1 - progress);
         }
 
+        rectF.set(b, b, w - b, h - b);
+        canvas.drawRoundRect(rectF, _2dp, _2dp, bp);
+
         if (isChecked) {
-            path.reset();
-            path.moveTo(0.14f * w, 0.47f * h);
-            path.lineTo(0.42f * w, 0.75f * h);
-            path.lineTo(0.86f * w, 0.25f * w);
-            canvas.drawPath(path, p);
+            if (progress <= 0.5f) {
+                float left = _2dp + progress * (w - 2 * _2dp);
+                float top = _2dp + progress * (h - 2 * _2dp);
+                float right = (2 * _2dp - w) * progress + w - _2dp;
+                float bottom = (2 * _2dp - h) * progress + h - _2dp;
+                rectF.set(left, top, right, bottom);
+                canvas.drawRoundRect(rectF, _2dp * progress, _2dp * progress, bgp);
+            } else {
+                path.reset();
+                float x1 = (0.42f - 0.28f * 2 * (progress - 0.5f)) * w;
+                float y1 = (0.75f - 0.28f * 2 * (progress - 0.5f)) * h;
+                float x2 = (0.42f + 0.44f * 2 * (progress - 0.5f)) * w;
+                float y2 = (0.75f - 0.5f * 2 * (progress - 0.5f)) * h;
+
+                path.moveTo(x1, y1);
+                path.lineTo(0.42f * w, 0.75f * h);
+                path.lineTo(x2, y2);
+                canvas.drawPath(path, p);
+            }
+        } else {
+            float left = _2dp + progress * (w / 2f - _2dp);
+            float top = _2dp + progress * (h / 2f - _2dp);
+            float right = (_2dp - w / 2f) * progress + w - _2dp;
+            float bottom = (_2dp - h / 2f) * progress + h - _2dp;
+            rectF.set(left, top, right, bottom);
+            canvas.drawRoundRect(rectF, _2dp * progress, _2dp * progress, bgp);
         }
     }
 }

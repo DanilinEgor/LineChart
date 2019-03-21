@@ -91,6 +91,7 @@ public class MainActivity extends Activity {
         boolean isPortrait = orientation != Configuration.ORIENTATION_LANDSCAPE;
 
         int counter = 0;
+        int linesOffset = 0;
         for (int j = 0; j < datas.length; j++) {
             Data data = datas[j];
 
@@ -114,6 +115,7 @@ public class MainActivity extends Activity {
                         new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                                 isPortrait ? Utils.dpToPx(400) : Utils.dpToPx(200)));
                 lineView.setData(data);
+                //lineView.setLineEnabled(counter - linesOffset, checked[counter]);
             }
             root.addView(lineView);
 
@@ -141,6 +143,7 @@ public class MainActivity extends Activity {
                 });
                 bigLineView.setTo(to[j]);
                 bigLineView.setFrom(from[j]);
+                //bigLineView.setLineEnabled(counter - linesOffset, checked[counter]);
             }
             root.addView(bigLineView);
 
@@ -211,6 +214,8 @@ public class MainActivity extends Activity {
             }
 
             mainRoot.addView(root);
+
+            linesOffset += data.columns.length - 1;
         }
 
         applyColor();
@@ -342,13 +347,18 @@ public class MainActivity extends Activity {
                     bigLineView.setChartForegroundBorderColor(foregroundBorderColor);
                     bigLineView.invalidate();
                 }
+
                 for (TextView textView : textViews) {
                     textView.setTextColor(textColor);
                 }
+
+                for (CheckBox checkBox : checkBoxes) {
+                    checkBox.setBgColor(chartBg);
+                }
+
                 for (View divider : dividers) {
                     divider.setBackgroundColor(windowBg);
                 }
-
                 scrollView.setBackgroundColor(windowBg);
 
                 getActionBar().setBackgroundDrawable(new ColorDrawable(colorPrimary));

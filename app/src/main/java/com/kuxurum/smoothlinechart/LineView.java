@@ -332,8 +332,9 @@ public class LineView extends View {
 
             //Log.v("LineView", "x=" + x);
 
-            canvas.drawLine(paddingStart + x, paddingTop + Utils.dpToPx(5), paddingStart + x,
-                    paddingTop + h, vertAxisP);
+            canvas.drawLine(paddingStart + x,
+                    Math.max(paddingTop + Utils.dpToPx(5), convertToY(h, maxY) - Utils.dpToPx(20)),
+                    paddingStart + x, paddingTop + h, vertAxisP);
         }
 
         for (int i : dateIndices) {
@@ -602,14 +603,15 @@ public class LineView extends View {
                     bp.setAlpha(MAX_ALPHA);
                 }
 
-                canvas.drawCircle(paddingStart + x, paddingTop + y, Utils.dpToPx(3), circleP);
-                canvas.drawCircle(paddingStart + x, paddingTop + y, Utils.dpToPx(2), bp);
+                canvas.drawCircle(paddingStart + x, paddingTop + y, Utils.dpToPx(4), circleP);
+                canvas.drawCircle(paddingStart + x, paddingTop + y, Utils.dpToPx(3f), bp);
             }
         }
 
         if (selectedIndex != -1) {
             float x = w * (columnX.value[selectedIndex] - fromX) * 1f / (toX - fromX);
-            drawLabel(canvas, paddingStart + x, paddingTop + Utils.dpToPx(5),
+            drawLabel(canvas, paddingStart + x,
+                    Math.max(paddingTop + Utils.dpToPx(5), convertToY(h, maxY) - Utils.dpToPx(20)),
                     paddingStart + Utils.dpToPx(5), getWidth() - paddingEnd - Utils.dpToPx(5),
                     selectedIndex);
         }
