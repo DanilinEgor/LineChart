@@ -2,9 +2,11 @@ package com.kuxurum.smoothlinechart;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.util.AttributeSet;
@@ -18,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Formatter;
 import java.util.List;
 import java.util.Locale;
 
@@ -52,7 +55,8 @@ public class LineView extends View {
     private boolean step0Down;
     private float sw = 0f;
 
-    private SimpleDateFormat dateFormat = new SimpleDateFormat("MMM d", Locale.US);
+    private Formatter formatter = new Formatter();
+    //private SimpleDateFormat dateFormat = new SimpleDateFormat("MMM d", Locale.US);
     private SimpleDateFormat labelDateFormat = new SimpleDateFormat("EEE, MMM d", Locale.US);
     private Date date = new Date();
     private LongSparseArray<Long> yToTime = new LongSparseArray<>();
@@ -66,6 +70,12 @@ public class LineView extends View {
 
     float _24dp;
     private int axisColor, axisColorDark;
+
+    String[] axisTexts = new String[5];
+    StringBuilder builder = new StringBuilder();
+
+    private Bitmap drawBitmap;
+    //private Canvas drawCanvas;
 
     public LineView(Context context) {
         super(context);
@@ -88,7 +98,6 @@ public class LineView extends View {
         p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(5f);
-        p.setStrokeCap(Paint.Cap.ROUND);
 
         bp = new Paint(Paint.ANTI_ALIAS_FLAG);
         bp.setStyle(Paint.Style.FILL);
@@ -222,7 +231,7 @@ public class LineView extends View {
         super.onDraw(canvas);
 
         long time = System.currentTimeMillis();
-
+        //drawBitmap.eraseColor(0);
         //Log.v("LineView", "====");
 
         int paddingStart = getPaddingLeft();
@@ -273,7 +282,7 @@ public class LineView extends View {
             axisP.setColor(axisColor);
             axisP.setAlpha(alpha);
             textP.setAlpha(alpha);
-            String[] axisTexts = getAxisTexts(yKey);
+            getAxisTexts(yKey);
             for (int i = 1; i < 6; i++) {
                 float y = convertToY(h, (long) (i * yKey / 5f));
                 canvas.drawLine(paddingStart + _24dp, paddingTop + y,
@@ -296,7 +305,7 @@ public class LineView extends View {
         //Log.v("LineView", "yToTime.get(maxY)=" + yToTime.get(maxY));
         if (!maxWasDrawn && maxY != 0f) {
             //Log.v("LineView", "maxY=" + maxY + " normal alpha=" + axisP.getAlpha());
-            String[] axisTexts = getAxisTexts(maxY);
+            getAxisTexts(maxY);
             for (int i = 1; i < 6; i++) {
                 axisP.setColor(axisColor);
                 axisP.setAlpha(MAX_ALPHA);
@@ -333,7 +342,7 @@ public class LineView extends View {
 
         for (int i : dateIndices) {
             date.setTime(columnX.value[i]);
-            String s = dateFormat.format(date);
+            String s = formatDate(date);//dateFormat.format(date);
             float x = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
 
             int alpha;
@@ -478,7 +487,7 @@ public class LineView extends View {
             }
         }
 
-        drawLines(canvas, time);
+        drawLines(canvas, time, fromIndex, toIndex);
 
         for (int j = 1; j < data.columns.length; j++) {
             Long lineTime = lineToTime.get(j);
@@ -497,6 +506,7 @@ public class LineView extends View {
 
         //canvas.drawLine(drawX, 0, drawX, h, axisP);
 
+        //canvas.drawBitmap(drawBitmap, null, dst, p);
         Log.v("LineView", "time=" + (System.currentTimeMillis() - time) + "ms");
 
         if (lineToTime.size() != 0
@@ -507,28 +517,43 @@ public class LineView extends View {
         }
     }
 
-    private String[] getAxisTexts(long maxValue) {
-        String[] res = new String[5];
+    Rect src = new Rect();
+    Rect dst = new Rect();
+
+    private void getAxisTexts(long maxValue) {
         if (maxValue > 1_000_000_000) {
             for (int i = 1; i < 6; i++) {
-                long v = maxValue / 5 * i;
-                res[i - 1] = String.valueOf((v - v % 10_000_000) / 1_000_000_000f) + "B";
+                long v = maxValue / 5 * i / 10_000_000;
+                builder.setLength(0);
+                builder.append(v / 100);
+                builder.append(".");
+                builder.append(v % 100);
+                builder.append("B");
+                axisTexts[i - 1] = builder.toString();
             }
         } else if (maxValue > 1_000_000) {
             for (int i = 1; i < 6; i++) {
-                long v = maxValue / 5 * i;
-                res[i - 1] = String.valueOf((v - v % 10_000) / 1_000_000f) + "M";
+                long v = maxValue * i / 5 / 10_000;
+
+                builder.setLength(0);
+                builder.append(v / 100);
+                builder.append(".");
+                builder.append(v % 100);
+                builder.append("M");
+
+                axisTexts[i - 1] = builder.toString();
             }
         } else {
             for (int i = 1; i < 6; i++) {
                 long v = maxValue / 5 * i;
-                res[i - 1] = String.valueOf(v);
+                builder.setLength(0);
+                builder.append(v);
+                axisTexts[i - 1] = builder.toString();
             }
         }
-        return res;
     }
 
-    private void drawLines(Canvas canvas, long time) {
+    private void drawLines(Canvas canvas, long time, int fromIndex, int toIndex) {
         int paddingStart = getPaddingLeft();
         int paddingEnd = getPaddingRight();
         int paddingTop = getPaddingTop();
@@ -543,10 +568,13 @@ public class LineView extends View {
 
         Data.Column columnX = data.columns[0];
         for (int j = 1; j < data.columns.length; j++) {
+            if (lineDisabled[j]) continue;
+
             Data.Column column = data.columns[j];
 
             //Log.v("LineView", "lineToTime.get(j)=" + lineToTime.get(j));
             p.setColor(column.color);
+            circleP.setColor(column.color);
             if (lineToTime.get(j) != null) {
                 int alpha;
                 if (lineToUp.get(j)) {
@@ -559,8 +587,6 @@ public class LineView extends View {
                                     + ANIMATION_DURATION)), 0);
                 }
                 p.setAlpha(alpha);
-            } else if (lineDisabled[j]) {
-                if (p.getAlpha() != 0) p.setAlpha(0);
             } else {
                 if (p.getAlpha() != MAX_ALPHA) p.setAlpha(MAX_ALPHA);
             }
@@ -581,6 +607,7 @@ public class LineView extends View {
                     points[4 * i] = startX;
                     points[4 * i + 1] = startY;
                 }
+                canvas.drawCircle(startX, startY, 0.1f, circleP);
             }
             canvas.drawLines(points, 4 * fromIndex, (toIndex - fromIndex - 1) * 4, p);
 
@@ -598,7 +625,7 @@ public class LineView extends View {
                 }
 
                 canvas.drawCircle(paddingStart + x, paddingTop + y, Utils.dpToPx(4), circleP);
-                canvas.drawCircle(paddingStart + x, paddingTop + y, Utils.dpToPx(3f), bp);
+                canvas.drawCircle(paddingStart + x, paddingTop + y, Utils.dpToPx(3), bp);
             }
         }
 
@@ -705,6 +732,13 @@ public class LineView extends View {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
 
+        //drawBitmap =
+        //        Bitmap.createBitmap((int) (w * 0.8f), (int) (h * 0.8f), Bitmap.Config.ARGB_8888);
+        //Canvas drawCanvas = new Canvas(drawBitmap);
+        Data.Column columnX = data.columns[0];
+        //drawLines(drawCanvas, System.currentTimeMillis(), 0, columnX.value.length);
+        //dst.set(0, 0, w, h);
+
         int paddingStart = getPaddingLeft();
         int paddingEnd = getPaddingRight();
         int paddingTop = getPaddingTop();
@@ -716,7 +750,6 @@ public class LineView extends View {
         Log.v("LineView", "w=" + w + " h=" + h + " ow=" + oldw + " oh=" + oldh);
 
         long start = System.currentTimeMillis();
-        Data.Column columnX = data.columns[0];
 
         float lastCenterX = 0f;
         for (int i = toIndex - 1; i >= fromIndex; i--) {
@@ -881,5 +914,9 @@ public class LineView extends View {
         calculateMaxY();
         log();
         invalidate();
+    }
+
+    private String formatDate(Date date) {
+        return "Jan 22";
     }
 }
