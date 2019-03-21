@@ -28,7 +28,7 @@ public class LineView extends View {
     private static int MAX_ALPHA = 255;
     private Data data;
     private Paint p;
-    private Paint bp, bp2;
+    private Paint bp;
     private Paint textP;
     private Paint xTextP;
     private Paint axisP;
@@ -92,10 +92,6 @@ public class LineView extends View {
 
         bp = new Paint(Paint.ANTI_ALIAS_FLAG);
         bp.setStyle(Paint.Style.FILL);
-
-        bp2 = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bp2.setColor(Color.parseColor("#00000000"));
-        bp2.setStyle(Paint.Style.FILL);
 
         axisP = new Paint(Paint.ANTI_ALIAS_FLAG);
         axisP.setStrokeWidth(Utils.dpToPx(1));
@@ -194,7 +190,6 @@ public class LineView extends View {
 
     void setChartBackgroundColor(int color) {
         bp.setColor(color);
-        bp2.setColor(color);
     }
 
     void setAxisColor(int color) {
@@ -242,7 +237,6 @@ public class LineView extends View {
                 - xTextP.getTextSize()
                 - Utils.dpToPx(6));
 
-        canvas.drawRect(0, 0, getWidth(), getHeight(), bp2);
         canvas.clipRect(paddingStart, paddingTop, getWidth() - paddingEnd,
                 getHeight() - paddingBottom);
 

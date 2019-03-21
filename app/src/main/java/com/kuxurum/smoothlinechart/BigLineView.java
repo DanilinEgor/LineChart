@@ -17,7 +17,6 @@ public class BigLineView extends View {
     private static int MAX_ALPHA = 255;
     private Data data;
     private Paint p;
-    private Paint bp;
     private Paint fp, fp2;
     private float[] points;
 
@@ -57,9 +56,6 @@ public class BigLineView extends View {
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(5f);
         p.setAntiAlias(true);
-
-        bp = new Paint();
-        bp.setStyle(Paint.Style.FILL);
 
         fp = new Paint();
         fp.setStyle(Paint.Style.FILL);
@@ -157,7 +153,7 @@ public class BigLineView extends View {
     }
 
     void setChartBackgroundColor(int color) {
-        bp.setColor(color);
+        //bp.setColor(color);
     }
 
     void setChartForegroundColor(int color) {
@@ -181,7 +177,6 @@ public class BigLineView extends View {
         int w = getWidth() - paddingStart - paddingEnd;
         int h = (getHeight() - paddingBottom - paddingTop - Utils.dpToPx(6));
 
-        canvas.drawRect(0, 0, getWidth(), getHeight(), bp);
         if (data.columns.length == 0) return;
 
         if (step0Time != 0L) {

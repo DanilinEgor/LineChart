@@ -359,7 +359,7 @@ public class MainActivity extends Activity {
                 for (View divider : dividers) {
                     divider.setBackgroundColor(windowBg);
                 }
-                scrollView.setBackgroundColor(windowBg);
+                getWindow().setBackgroundDrawable(new ColorDrawable(windowBg));
 
                 getActionBar().setBackgroundDrawable(new ColorDrawable(colorPrimary));
 
