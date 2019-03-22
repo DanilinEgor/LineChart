@@ -593,10 +593,11 @@ public class LineView extends View {
 
         if (selectedIndex != -1) {
             float x = w * (columnX.value[selectedIndex] - fromX) * 1f / (toX - fromX);
+            int minX = paddingStart + Utils.dpToPx(5);
+            int maxX = getWidth() - paddingEnd - Utils.dpToPx(5);
             drawLabel(canvas, paddingStart + x,
                     Math.max(paddingTop + Utils.dpToPx(5), convertToY(h, maxY) - Utils.dpToPx(20)),
-                    paddingStart + Utils.dpToPx(5), getWidth() - paddingEnd - Utils.dpToPx(5),
-                    selectedIndex);
+                    minX, maxX, selectedIndex);
         }
     }
 

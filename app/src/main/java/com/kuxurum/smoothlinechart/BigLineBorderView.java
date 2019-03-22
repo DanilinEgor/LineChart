@@ -1,5 +1,6 @@
 package com.kuxurum.smoothlinechart;
 
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
@@ -8,7 +9,6 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewConfiguration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,7 +17,7 @@ public class BigLineBorderView extends View {
 
     private float fromX, toX;
     private int borderW;
-    private ViewConfiguration vc;
+    private ValueAnimator colorAnimator = new ValueAnimator();
 
     public BigLineBorderView(Context context) {
         super(context);
@@ -35,8 +35,6 @@ public class BigLineBorderView extends View {
     }
 
     private void init() {
-        vc = ViewConfiguration.get(getContext());
-
         setLayerType(LAYER_TYPE_HARDWARE, null);
         borderW = Utils.dpToPx(6);
 
@@ -45,6 +43,14 @@ public class BigLineBorderView extends View {
 
         fp2 = new Paint();
         fp2.setStyle(Paint.Style.FILL);
+
+        colorAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                fp2.setAlpha((int) animation.getAnimatedValue());
+                invalidate();
+            }
+        });
 
         setOnTouchListener(new OnTouchListener() {
             private boolean isStartPressed = false;
@@ -91,6 +97,11 @@ public class BigLineBorderView extends View {
                     Log.v("BigLineBorderView", "startPressX=" + startPressX);
                     Log.v("BigLineBorderView", "startFromX=" + startFromX);
                     Log.v("BigLineBorderView", "startBorder=" + startBorder);
+
+                    if (isStartPressed || isInsidePressed || isEndPressed) {
+                        colorAnimator.setIntValues(50, 150);
+                        colorAnimator.start();
+                    }
                 } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
                     if (Math.abs(event.getY() - startY) > Utils.dpToPx(30)) {
                         getParent().requestDisallowInterceptTouchEvent(false);
@@ -124,6 +135,11 @@ public class BigLineBorderView extends View {
                     }
                 } else if (event.getAction() == MotionEvent.ACTION_CANCEL
                         || event.getAction() == MotionEvent.ACTION_UP) {
+                    if (colorAnimator.isStarted()) {
+                        colorAnimator.cancel();
+                    }
+                    colorAnimator.setIntValues(150, 50);
+                    colorAnimator.start();
                     getParent().requestDisallowInterceptTouchEvent(false);
                     isStartPressed = false;
                     isEndPressed = false;

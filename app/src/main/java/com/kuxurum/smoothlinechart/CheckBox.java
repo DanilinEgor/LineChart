@@ -14,7 +14,7 @@ public class CheckBox extends View {
     private boolean isChecked = false;
     private Paint bgp, bp, p;
     private Path path = new Path();
-    private ValueAnimator progressAnimator;
+    private ValueAnimator progressAnimator = new ValueAnimator();
     private RectF rectF = new RectF();
     private float _2dp;
     private float progress = 0f;
@@ -63,7 +63,7 @@ public class CheckBox extends View {
         if (checked == isChecked) return;
         isChecked = checked;
 
-        if (progressAnimator != null) {
+        if (progressAnimator.isStarted()) {
             progressAnimator.cancel();
         }
 
