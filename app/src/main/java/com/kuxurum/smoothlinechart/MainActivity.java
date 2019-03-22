@@ -20,14 +20,12 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends Activity {
     private Data[] datas;
-    private ScrollView scrollView;
     private List<LinearLayout> roots = new ArrayList<>();
     private List<LineView> lineViews = new ArrayList<>();
     private List<BigLineView> bigLineViews = new ArrayList<>();
@@ -86,7 +84,6 @@ public class MainActivity extends Activity {
         }
 
         ViewGroup mainRoot = findViewById(R.id.layout_root);
-        scrollView = findViewById(R.id.sv);
 
         int orientation = getResources().getConfiguration().orientation;
         boolean isPortrait = orientation != Configuration.ORIENTATION_LANDSCAPE;
@@ -140,19 +137,6 @@ public class MainActivity extends Activity {
                                 ViewGroup.LayoutParams.MATCH_PARENT);
                 bigLineView.setLayoutParams(params);
                 bigLineView.setData(data);
-                //bigLineView.addListener(new BigLineView.MoveListener() {
-                //    @Override
-                //    public void onUpdateFrom(float from) {
-                //        lineView.setFrom(from);
-                //    }
-                //
-                //    @Override
-                //    public void onUpdateTo(float to) {
-                //        lineView.setTo(to);
-                //    }
-                //});
-                //bigLineView.setTo(to[j]);
-                //bigLineView.setFrom(from[j]);
                 //bigLineView.setLineEnabled(counter - linesOffset, checked[counter]);
             }
             frameLayout.addView(bigLineView);
@@ -177,7 +161,6 @@ public class MainActivity extends Activity {
                 });
                 bigLineBorderView.setTo(to[j]);
                 bigLineBorderView.setFrom(from[j]);
-                //bigLineBorderView.setLineEnabled(counter - linesOffset, checked[counter]);
             }
             frameLayout.addView(bigLineBorderView);
 
@@ -252,7 +235,7 @@ public class MainActivity extends Activity {
             linesOffset += data.columns.length - 1;
         }
 
-        applyColor();
+        applyColor(false);
     }
 
     @Override
@@ -267,13 +250,13 @@ public class MainActivity extends Activity {
             SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
             boolean isDay = preferences.getBoolean("day", true);
             preferences.edit().putBoolean("day", !isDay).apply();
-            applyColor();
+            applyColor(true);
             return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
-    private void applyColor() {
+    private void applyColor(boolean animate) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         boolean isDay = preferences.getBoolean("day", true);
 
@@ -304,6 +287,11 @@ public class MainActivity extends Activity {
         int nightColorPrimary = res.getColor(R.color.night_colorPrimary);
         int colorPrimaryDark = res.getColor(R.color.colorPrimaryDark);
         int nightColorPrimaryDark = res.getColor(R.color.night_colorPrimaryDark);
+
+        final ColorDrawable windowDrawable = new ColorDrawable();
+        final ColorDrawable actionBarDrawable = new ColorDrawable();
+        getWindow().setBackgroundDrawable(windowDrawable);
+        getActionBar().setBackgroundDrawable(actionBarDrawable);
 
         PropertyValuesHolder textColorP =
                 generateProperty("textColor", isDay, textColor, nightTextColor);
@@ -395,15 +383,17 @@ public class MainActivity extends Activity {
                 for (View divider : dividers) {
                     divider.setBackgroundColor(windowBg);
                 }
-                getWindow().setBackgroundDrawable(new ColorDrawable(windowBg));
-
-                getActionBar().setBackgroundDrawable(new ColorDrawable(colorPrimary));
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     getWindow().setStatusBarColor(colorPrimaryDark);
                 }
+
+                windowDrawable.setColor(windowBg);
+                actionBarDrawable.setColor(colorPrimary);
             }
         });
+
+        if (!animate) anim.setCurrentPlayTime(300);
         anim.setDuration(300);
         anim.start();
     }
@@ -411,7 +401,7 @@ public class MainActivity extends Activity {
     private PropertyValuesHolder generateProperty(String name, boolean isDay, int dayColor,
             int nightColor) {
         return PropertyValuesHolder.ofObject(name, ArgbEvaluator.getInstance(),
-                isDay ? dayColor : nightColor, isDay ? nightColor : dayColor);
+                isDay ? nightColor : dayColor, isDay ? dayColor : nightColor);
     }
 
     @Override
@@ -437,7 +427,17 @@ public class MainActivity extends Activity {
         }
     }
 
-    interface AnimationListener {
-        void onUpdate(int color);
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+
+        boolean isPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT
+                || newConfig.screenHeightDp > newConfig.screenWidthDp;
+
+        for (LineView lineView : lineViews) {
+            ViewGroup.LayoutParams layoutParams = lineView.getLayoutParams();
+            layoutParams.height = Utils.dpToPx(isPortrait ? 400:200);
+            lineView.setLayoutParams(layoutParams);
+        }
     }
 }

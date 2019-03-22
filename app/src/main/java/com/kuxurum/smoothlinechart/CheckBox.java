@@ -8,7 +8,6 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
 
 public class CheckBox extends View {
@@ -73,7 +72,6 @@ public class CheckBox extends View {
         progressAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
-                Log.v("cb", "progress=" + progress);
                 progress = (float) animation.getAnimatedValue();
                 invalidate();
             }

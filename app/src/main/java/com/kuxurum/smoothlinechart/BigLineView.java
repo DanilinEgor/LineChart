@@ -42,11 +42,12 @@ public class BigLineView extends View {
     }
 
     private void init() {
-        setLayerType(LAYER_TYPE_HARDWARE, null);
-
         p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(5f);
+        p.setStrokeCap(Paint.Cap.SQUARE);
+
+        setLayerType(LAYER_TYPE_HARDWARE, p);
     }
 
     @Override
@@ -139,7 +140,7 @@ public class BigLineView extends View {
                     points[4 * i] = startX;
                     points[4 * i + 1] = startY;
                 }
-                canvas.drawCircle(startX, startY, 0.1f, p);
+                //canvas.drawCircle(startX, startY, 0.1f, p);
             }
 
             canvas.drawLines(points, p);

@@ -2,11 +2,10 @@ package com.kuxurum.smoothlinechart;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.util.AttributeSet;
@@ -18,9 +17,10 @@ import android.view.View;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
-import java.util.Formatter;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Locale;
 
@@ -55,10 +55,10 @@ public class LineView extends View {
     private boolean step0Down;
     private float sw = 0f;
 
-    private Formatter formatter = new Formatter();
-    //private SimpleDateFormat dateFormat = new SimpleDateFormat("MMM d", Locale.US);
     private SimpleDateFormat labelDateFormat = new SimpleDateFormat("EEE, MMM d", Locale.US);
     private Date date = new Date();
+    private Calendar calendar = GregorianCalendar.getInstance();
+
     private LongSparseArray<Long> yToTime = new LongSparseArray<>();
     private LongSparseArray<Long> dateToTime = new LongSparseArray<>();
     private LongSparseArray<Boolean> dateToUp = new LongSparseArray<>();
@@ -71,11 +71,10 @@ public class LineView extends View {
     float _24dp;
     private int axisColor, axisColorDark;
 
-    String[] axisTexts = new String[5];
-    StringBuilder builder = new StringBuilder();
-
-    private Bitmap drawBitmap;
-    //private Canvas drawCanvas;
+    private String[] axisTexts = new String[5];
+    private StringBuilder builder = new StringBuilder();
+    private RectF labelRectF = new RectF();
+    private RectF shadowRectF = new RectF();
 
     public LineView(Context context) {
         super(context);
@@ -98,6 +97,7 @@ public class LineView extends View {
         p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(5f);
+        p.setStrokeCap(Paint.Cap.SQUARE);
 
         bp = new Paint(Paint.ANTI_ALIAS_FLAG);
         bp.setStyle(Paint.Style.FILL);
@@ -120,7 +120,7 @@ public class LineView extends View {
         circleP.setStrokeWidth(5f);
 
         shadowP = new Paint(Paint.ANTI_ALIAS_FLAG);
-        shadowP.setShadowLayer(4, 0, 0, Color.parseColor("#40000000"));
+        shadowP.setColor(Color.parseColor("#40000000"));
         shadowP.setStyle(Paint.Style.FILL);
 
         labelP = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -231,7 +231,6 @@ public class LineView extends View {
         super.onDraw(canvas);
 
         long time = System.currentTimeMillis();
-        //drawBitmap.eraseColor(0);
         //Log.v("LineView", "====");
 
         int paddingStart = getPaddingLeft();
@@ -245,9 +244,6 @@ public class LineView extends View {
                 - paddingTop
                 - xTextP.getTextSize()
                 - Utils.dpToPx(6));
-
-        canvas.clipRect(paddingStart, paddingTop, getWidth() - paddingEnd,
-                getHeight() - paddingBottom);
 
         if (data.columns.length == 0) return;
 
@@ -341,8 +337,7 @@ public class LineView extends View {
         }
 
         for (int i : dateIndices) {
-            date.setTime(columnX.value[i]);
-            String s = formatDate(date);//dateFormat.format(date);
+            String s = formatDate(columnX.value[i]);//dateFormat.format(date);
             float x = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
 
             int alpha;
@@ -441,11 +436,6 @@ public class LineView extends View {
                     }
                 }
             }
-            //date.setTime(columnX.value[i]);
-            //String s = dateFormat.format(date);
-            //x = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
-            //canvas.drawText(s, paddingStart + x, getHeight() - paddingBottom - utils.dpToPx(3),
-            //        xTextP);
         }
 
         if (!dateIndices.isEmpty()) {
@@ -453,10 +443,15 @@ public class LineView extends View {
             float x = w * (columnX.value[lastDate] - fromX) * 1f / (toX - fromX);
             if (w - x - sw / 2f > DATE_MARGIN + sw) {
                 //Log.v("LineView", "w - x - sw / 2f=" + (w - x - sw / 2f));
-                int lastX = columnX.value.length - 1;
-                dateIndices.add(lastX);
-                dateToTime.put(lastX, time);
-                dateToUp.put(lastX, true);
+                for (int i = columnX.value.length - 1; i > lastDate; i--) {
+                    float checkX = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
+                    if (w - checkX - sw / 2f > 0) {
+                        dateIndices.add(i);
+                        dateToTime.put(i, time);
+                        dateToUp.put(i, true);
+                        break;
+                    }
+                }
             }
         }
 
@@ -465,9 +460,15 @@ public class LineView extends View {
             float x = w * (columnX.value[firstDate] - fromX) * 1f / (toX - fromX);
             if (x - sw / 2f > DATE_MARGIN + sw) {
                 //Log.v("LineView", "x - sw / 2f=" + (x - sw / 2f));
-                dateIndices.add(0);
-                dateToTime.put(0, time);
-                dateToUp.put(0, true);
+                for (int i = 0; i < firstDate; i++) {
+                    float checkX = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
+                    if (checkX - sw / 2f > 0 && x - checkX > sw + DATE_MARGIN) {
+                        dateIndices.add(i);
+                        dateToTime.put(i, time);
+                        dateToUp.put(i, true);
+                        break;
+                    }
+                }
             }
         }
 
@@ -506,7 +507,6 @@ public class LineView extends View {
 
         //canvas.drawLine(drawX, 0, drawX, h, axisP);
 
-        //canvas.drawBitmap(drawBitmap, null, dst, p);
         Log.v("LineView", "time=" + (System.currentTimeMillis() - time) + "ms");
 
         if (lineToTime.size() != 0
@@ -514,42 +514,6 @@ public class LineView extends View {
                 || yToTime.size() != 0
                 || step0Time != 0L) {
             postInvalidateOnAnimation();
-        }
-    }
-
-    Rect src = new Rect();
-    Rect dst = new Rect();
-
-    private void getAxisTexts(long maxValue) {
-        if (maxValue > 1_000_000_000) {
-            for (int i = 1; i < 6; i++) {
-                long v = maxValue / 5 * i / 10_000_000;
-                builder.setLength(0);
-                builder.append(v / 100);
-                builder.append(".");
-                builder.append(v % 100);
-                builder.append("B");
-                axisTexts[i - 1] = builder.toString();
-            }
-        } else if (maxValue > 1_000_000) {
-            for (int i = 1; i < 6; i++) {
-                long v = maxValue * i / 5 / 10_000;
-
-                builder.setLength(0);
-                builder.append(v / 100);
-                builder.append(".");
-                builder.append(v % 100);
-                builder.append("M");
-
-                axisTexts[i - 1] = builder.toString();
-            }
-        } else {
-            for (int i = 1; i < 6; i++) {
-                long v = maxValue / 5 * i;
-                builder.setLength(0);
-                builder.append(v);
-                axisTexts[i - 1] = builder.toString();
-            }
         }
     }
 
@@ -594,7 +558,6 @@ public class LineView extends View {
             for (int i = fromIndex; i < toIndex; i++) {
                 float startX = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
                 float startY = convertToY(h, column.value[i]);
-
                 if (i == fromIndex) {
                     points[4 * i] = startX;
                     points[4 * i + 1] = startY;
@@ -607,7 +570,6 @@ public class LineView extends View {
                     points[4 * i] = startX;
                     points[4 * i + 1] = startY;
                 }
-                canvas.drawCircle(startX, startY, 0.1f, circleP);
             }
             canvas.drawLines(points, 4 * fromIndex, (toIndex - fromIndex - 1) * 4, p);
 
@@ -685,12 +647,13 @@ public class LineView extends View {
 
         float startX = Math.min(maxX - w, Math.max(minX, x0 - w / 6f));
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            canvas.drawRoundRect(startX, y0, startX + w, y0 + h, 10, 10, labelP);
-        } else {
-            canvas.drawRect(startX - 1, y0 - 1, startX + w + 1, y0 + h + 1, shadowP);
-            canvas.drawRect(startX, y0, startX + w, y0 + h, labelP);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            shadowRectF.set(startX - 1, y0 - 1, startX + w + 1, y0 + h + 1);
+            canvas.drawRoundRect(shadowRectF, 10, 10, shadowP);
         }
+
+        labelRectF.set(startX, y0, startX + w, y0 + h);
+        canvas.drawRoundRect(labelRectF, 10, 10, labelP);
 
         canvas.drawText(dateText, startX + paddingStart, y0 + paddingTop - dateLabelPFM.ascent,
                 dateLabelP);
@@ -732,12 +695,7 @@ public class LineView extends View {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
 
-        //drawBitmap =
-        //        Bitmap.createBitmap((int) (w * 0.8f), (int) (h * 0.8f), Bitmap.Config.ARGB_8888);
-        //Canvas drawCanvas = new Canvas(drawBitmap);
         Data.Column columnX = data.columns[0];
-        //drawLines(drawCanvas, System.currentTimeMillis(), 0, columnX.value.length);
-        //dst.set(0, 0, w, h);
 
         int paddingStart = getPaddingLeft();
         int paddingEnd = getPaddingRight();
@@ -890,17 +848,6 @@ public class LineView extends View {
         }
     }
 
-    private void log() {
-        Log.v("LineView", "fromIndex = "
-                + fromIndex
-                + ", toIndex = "
-                + toIndex
-                + ", maxY = "
-                + maxY
-                + ", step0 = "
-                + step0);
-    }
-
     public void setLineEnabled(int index, boolean checked) {
         long time = System.currentTimeMillis();
         if (lineToTime.get(index) == null) {
@@ -916,7 +863,94 @@ public class LineView extends View {
         invalidate();
     }
 
-    private String formatDate(Date date) {
-        return "Jan 22";
+    private void getAxisTexts(long maxValue) {
+        if (maxValue > 1_000_000_000) {
+            for (int i = 1; i < 6; i++) {
+                long v = maxValue / 5 * i / 10_000_000;
+                builder.setLength(0);
+                builder.append(v / 100);
+                builder.append(".");
+                builder.append(v % 100);
+                builder.append("B");
+                axisTexts[i - 1] = builder.toString();
+            }
+        } else if (maxValue > 1_000_000) {
+            for (int i = 1; i < 6; i++) {
+                long v = maxValue * i / 5 / 10_000;
+
+                builder.setLength(0);
+                builder.append(v / 100);
+                builder.append(".");
+                builder.append(v % 100);
+                builder.append("M");
+
+                axisTexts[i - 1] = builder.toString();
+            }
+        } else {
+            for (int i = 1; i < 6; i++) {
+                long v = maxValue / 5 * i;
+                builder.setLength(0);
+                builder.append(v);
+                axisTexts[i - 1] = builder.toString();
+            }
+        }
+    }
+
+    private String formatDate(long time) {
+        calendar.setTimeInMillis(time);
+        int month = calendar.get(Calendar.MONTH);
+        int day = calendar.get(Calendar.DAY_OF_MONTH);
+        builder.setLength(0);
+        switch (month) {
+            case Calendar.JANUARY:
+                builder.append("Jan ");
+                break;
+            case Calendar.FEBRUARY:
+                builder.append("Feb ");
+                break;
+            case Calendar.MARCH:
+                builder.append("Mar ");
+                break;
+            case Calendar.APRIL:
+                builder.append("Apr ");
+                break;
+            case Calendar.MAY:
+                builder.append("May ");
+                break;
+            case Calendar.JUNE:
+                builder.append("Jun ");
+                break;
+            case Calendar.JULY:
+                builder.append("Jul ");
+                break;
+            case Calendar.AUGUST:
+                builder.append("Aug ");
+                break;
+            case Calendar.SEPTEMBER:
+                builder.append("Sep ");
+                break;
+            case Calendar.OCTOBER:
+                builder.append("Oct ");
+                break;
+            case Calendar.NOVEMBER:
+                builder.append("Nov ");
+                break;
+            case Calendar.DECEMBER:
+                builder.append("Dec ");
+                break;
+        }
+        builder.append(day);
+        return builder.toString();
+    }
+
+    private void log() {
+        Log.v("LineView", "fromIndex = "
+                + fromIndex
+                + ", toIndex = "
+                + toIndex
+                + ", maxY = "
+                + maxY
+                + ", step0 = "
+                + step0);
     }
 }
