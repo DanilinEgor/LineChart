@@ -29,7 +29,6 @@ public class MainActivity extends Activity {
     private List<LinearLayout> roots = new ArrayList<>();
     private List<LineView> lineViews = new ArrayList<>();
     private List<BigLineView> bigLineViews = new ArrayList<>();
-    private List<BigLineBorderView> bigLineBorderViews = new ArrayList<>();
     private List<CheckBox> checkBoxes = new ArrayList<>();
     private List<TextView> textViews = new ArrayList<>();
     private List<View> dividers = new ArrayList<>();
@@ -96,38 +95,32 @@ public class MainActivity extends Activity {
             }
             root.addView(lineView);
 
-            FrameLayout frameLayout = new FrameLayout(this);
-            {
-                LinearLayout.LayoutParams params =
-                        new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                                Utils.dpToPx(50));
-                params.topMargin = Utils.dpToPx(8);
-                params.leftMargin = Utils.dpToPx(24);
-                params.rightMargin = Utils.dpToPx(24);
-                frameLayout.setLayoutParams(params);
-            }
-            root.addView(frameLayout);
+            //FrameLayout frameLayout = new FrameLayout(this);
+            //{
+            //    LinearLayout.LayoutParams params =
+            //            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            //                    Utils.dpToPx(50));
+            //    params.topMargin = Utils.dpToPx(8);
+            //    params.leftMargin = Utils.dpToPx(24);
+            //    params.rightMargin = Utils.dpToPx(24);
+            //    frameLayout.setLayoutParams(params);
+            //}
+            //root.addView(frameLayout);
 
             final BigLineView bigLineView = new BigLineView(this);
             bigLineViews.add(bigLineView);
             {
-                ViewGroup.LayoutParams params =
-                        new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT);
+                LinearLayout.LayoutParams params =
+                        new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                Utils.dpToPx(50));
+
+                params.topMargin = Utils.dpToPx(8);
+                params.leftMargin = Utils.dpToPx(12);
+                params.rightMargin = Utils.dpToPx(12);
+
                 bigLineView.setLayoutParams(params);
                 bigLineView.setData(data);
-                //bigLineView.setLineEnabled(counter - linesOffset, checked[counter]);
-            }
-            frameLayout.addView(bigLineView);
-
-            final BigLineBorderView bigLineBorderView = new BigLineBorderView(this);
-            bigLineBorderViews.add(bigLineBorderView);
-            {
-                ViewGroup.LayoutParams params =
-                        new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT);
-                bigLineBorderView.setLayoutParams(params);
-                bigLineBorderView.addListener(new BigLineBorderView.MoveListener() {
+                bigLineView.addListener(new BigLineView.MoveListener() {
                     @Override
                     public void onUpdateFrom(float from) {
                         lineView.setFrom(from);
@@ -138,10 +131,33 @@ public class MainActivity extends Activity {
                         lineView.setTo(to);
                     }
                 });
-                bigLineBorderView.setTo(to[j]);
-                bigLineBorderView.setFrom(from[j]);
+                bigLineView.setTo(to[j]);
+                bigLineView.setFrom(from[j]);
             }
-            frameLayout.addView(bigLineBorderView);
+            root.addView(bigLineView);
+
+            //final BigLineBorderView bigLineBorderView = new BigLineBorderView(this);
+            //bigLineBorderViews.add(bigLineBorderView);
+            //{
+            //    ViewGroup.LayoutParams params =
+            //            new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            //                    ViewGroup.LayoutParams.MATCH_PARENT);
+            //    bigLineBorderView.setLayoutParams(params);
+            //    bigLineBorderView.addListener(new BigLineBorderView.MoveListener() {
+            //        @Override
+            //        public void onUpdateFrom(float from) {
+            //            lineView.setFrom(from);
+            //        }
+            //
+            //        @Override
+            //        public void onUpdateTo(float to) {
+            //            lineView.setTo(to);
+            //        }
+            //    });
+            //    bigLineBorderView.setTo(to[j]);
+            //    bigLineBorderView.setFrom(from[j]);
+            //}
+            //frameLayout.addView(bigLineBorderView);
 
             for (int i = 1; i < data.columns.length; i++) {
                 Data.Column column = data.columns[i];
@@ -340,10 +356,11 @@ public class MainActivity extends Activity {
                     lineView.setChartBackgroundColor(chartBg);
                     lineView.invalidate();
                 }
-                for (BigLineBorderView bigLineBorderView : bigLineBorderViews) {
-                    bigLineBorderView.setChartForegroundColor(foregroundColor);
-                    bigLineBorderView.setChartForegroundBorderColor(foregroundBorderColor);
-                    bigLineBorderView.invalidate();
+
+                for (BigLineView bigLineView : bigLineViews) {
+                    bigLineView.setChartForegroundColor(foregroundColor);
+                    bigLineView.setChartForegroundBorderColor(foregroundBorderColor);
+                    bigLineView.invalidate();
                 }
 
                 for (TextView textView : textViews) {
@@ -380,8 +397,8 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        for (BigLineBorderView bigLineBorderView : bigLineBorderViews) {
-            bigLineBorderView.clearListeners();
+        for (BigLineView bigLineView : bigLineViews) {
+            bigLineView.clearListeners();
         }
         super.onDestroy();
     }

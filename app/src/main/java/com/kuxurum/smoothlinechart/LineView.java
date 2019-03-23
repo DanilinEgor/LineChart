@@ -696,13 +696,6 @@ public class LineView extends View {
     }
 
     @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        Log.v("onMeasure w", MeasureSpec.toString(widthMeasureSpec));
-        Log.v("onMeasure h", MeasureSpec.toString(heightMeasureSpec));
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-    }
-
-    @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
 
@@ -716,7 +709,7 @@ public class LineView extends View {
         w = w - paddingStart - paddingEnd;
         h = h - paddingBottom - paddingTop;
 
-        Log.v("LineView", "w=" + w + " h=" + h + " ow=" + oldw + " oh=" + oldh);
+        //Log.v("LineView", "w=" + w + " h=" + h + " ow=" + oldw + " oh=" + oldh);
 
         long start = System.currentTimeMillis();
 
@@ -726,20 +719,20 @@ public class LineView extends View {
             float x = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
             if (lastCenterX == 0f) {
                 if (w - x - sw / 2f > 0) {
-                    Log.v("LineView", "x=" + x);
+                    //Log.v("LineView", "x=" + x);
                     lastCenterX = x;
                     dateIndices.add(i);
                 }
             } else {
                 if (lastCenterX - x - sw > DATE_MARGIN) {
-                    Log.v("LineView", "x=" + x);
+                    //Log.v("LineView", "x=" + x);
                     lastCenterX = x;
                     dateIndices.add(i);
                 }
             }
         }
         Collections.sort(dateIndices);
-        Log.v("LineView", "time=" + (System.currentTimeMillis() - start) + "ms");
+        //Log.v("LineView", "time=" + (System.currentTimeMillis() - start) + "ms");
     }
 
     public void setData(Data data) {
@@ -894,6 +887,18 @@ public class LineView extends View {
                 builder.append(".");
                 builder.append(v % 100);
                 builder.append("M");
+
+                axisTexts[i - 1] = builder.toString();
+            }
+        } else if (maxValue > 1_000) {
+            for (int i = 1; i < 6; i++) {
+                long v = maxValue * i / 5 / 10;
+
+                builder.setLength(0);
+                builder.append(v / 100);
+                builder.append(".");
+                builder.append(v % 100);
+                builder.append("K");
 
                 axisTexts[i - 1] = builder.toString();
             }
