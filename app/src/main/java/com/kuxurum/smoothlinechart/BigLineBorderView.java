@@ -13,11 +13,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BigLineBorderView extends View {
+    private static final int MIN_ALPHA = 50;
+    private static final int MAX_ALPHA = 150;
     private Paint fp, fp2;
 
     private float fromX, toX;
     private int borderW;
     private ValueAnimator colorAnimator = new ValueAnimator();
+    private boolean isStartPressed = false;
+    private boolean isEndPressed = false;
+    private boolean isInsidePressed = false;
+
+    //LinearGradient shader;
+    //Matrix m = new Matrix();
 
     public BigLineBorderView(Context context) {
         super(context);
@@ -35,7 +43,6 @@ public class BigLineBorderView extends View {
     }
 
     private void init() {
-        setLayerType(LAYER_TYPE_HARDWARE, null);
         borderW = Utils.dpToPx(6);
 
         fp = new Paint();
@@ -44,6 +51,7 @@ public class BigLineBorderView extends View {
         fp2 = new Paint();
         fp2.setStyle(Paint.Style.FILL);
 
+        colorAnimator.setDuration(150);
         colorAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
@@ -53,9 +61,6 @@ public class BigLineBorderView extends View {
         });
 
         setOnTouchListener(new OnTouchListener() {
-            private boolean isStartPressed = false;
-            private boolean isEndPressed = false;
-            private boolean isInsidePressed = false;
             private float startPressX = 0f;
             private float startFromX = 0f;
             private float startToX = 0f;
@@ -97,9 +102,9 @@ public class BigLineBorderView extends View {
                     Log.v("BigLineBorderView", "startPressX=" + startPressX);
                     Log.v("BigLineBorderView", "startFromX=" + startFromX);
                     Log.v("BigLineBorderView", "startBorder=" + startBorder);
-
+                    //drawPic();
                     if (isStartPressed || isInsidePressed || isEndPressed) {
-                        colorAnimator.setIntValues(50, 150);
+                        colorAnimator.setIntValues(MIN_ALPHA, MAX_ALPHA);
                         colorAnimator.start();
                     }
                 } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
@@ -138,8 +143,10 @@ public class BigLineBorderView extends View {
                     if (colorAnimator.isStarted()) {
                         colorAnimator.cancel();
                     }
-                    colorAnimator.setIntValues(150, 50);
-                    colorAnimator.start();
+                    if (isStartPressed || isEndPressed || isInsidePressed) {
+                        colorAnimator.setIntValues(MAX_ALPHA, MIN_ALPHA);
+                        colorAnimator.start();
+                    }
                     getParent().requestDisallowInterceptTouchEvent(false);
                     isStartPressed = false;
                     isEndPressed = false;
@@ -158,6 +165,7 @@ public class BigLineBorderView extends View {
 
     void setChartForegroundBorderColor(int color) {
         fp2.setColor(color);
+        fp2.setAlpha(MIN_ALPHA);
     }
 
     @Override
@@ -171,6 +179,7 @@ public class BigLineBorderView extends View {
         int paddingBottom = getPaddingBottom();
 
         int w = getWidth() - paddingStart - paddingEnd;
+        int h = getHeight();
 
         float startBorder = w * fromX;
         float endBorder = Math.min(w * toX, w);
@@ -179,6 +188,24 @@ public class BigLineBorderView extends View {
                 getHeight() - paddingBottom, fp);
         canvas.drawRect(paddingStart + endBorder, paddingTop, getWidth() - paddingEnd,
                 getHeight() - paddingBottom, fp);
+
+        //if (isStartPressed) {
+        //    m.reset();
+        //    m.postScale(toX - fromX, 1f);
+        //    m.postTranslate(startBorder, 0);
+        //    shader.setLocalMatrix(m);
+        //} else if (isEndPressed) {
+        //    m.reset();
+        //    m.postScale(-1, 1, w / 2f, h / 2f);
+        //    m.postScale(toX - fromX, 1f);
+        //    m.postTranslate(startBorder, 0);
+        //    shader.setLocalMatrix(m);
+        //} else if (isInsidePressed) {
+        //    m.reset();
+        //    m.postTranslate(w, 0);
+        //    shader.setLocalMatrix(m);
+        //}
+
         canvas.drawRect(paddingStart + startBorder, paddingTop,
                 paddingStart + startBorder + Utils.dpToPx(6), getHeight() - paddingBottom, fp2);
         canvas.drawRect(paddingStart + endBorder - Utils.dpToPx(6), paddingTop,
@@ -197,6 +224,14 @@ public class BigLineBorderView extends View {
         Log.v("onMeasure w", MeasureSpec.toString(widthMeasureSpec));
         Log.v("onMeasure h", MeasureSpec.toString(heightMeasureSpec));
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        //shader = new LinearGradient(0, h / 2f, w, h / 2f, 0xff507da1, 0x32507da1,
+        //        Shader.TileMode.CLAMP);
+        //fp3.setShader(shader);
     }
 
     public void setFrom(float from) {

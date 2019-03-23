@@ -89,15 +89,14 @@ public class MainActivity extends Activity {
         boolean isPortrait = orientation != Configuration.ORIENTATION_LANDSCAPE;
 
         int counter = 0;
-        int linesOffset = 0;
         for (int j = 0; j < datas.length; j++) {
             Data data = datas[j];
 
             LinearLayout root = new LinearLayout(this);
             roots.add(root);
             {
-                ViewGroup.MarginLayoutParams params =
-                        new ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams params =
+                        new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.WRAP_CONTENT);
                 if (j != 0) {
                     params.topMargin = Utils.dpToPx(24);
@@ -119,8 +118,8 @@ public class MainActivity extends Activity {
 
             FrameLayout frameLayout = new FrameLayout(this);
             {
-                ViewGroup.MarginLayoutParams params =
-                        new ViewGroup.MarginLayoutParams(ViewGroup.MarginLayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams params =
+                        new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                                 Utils.dpToPx(50));
                 params.topMargin = Utils.dpToPx(8);
                 params.leftMargin = Utils.dpToPx(24);
@@ -168,9 +167,9 @@ public class MainActivity extends Activity {
                 Data.Column column = data.columns[i];
                 FrameLayout layout = new FrameLayout(this);
                 {
-                    ViewGroup.MarginLayoutParams params = new ViewGroup.MarginLayoutParams(
-                            ViewGroup.MarginLayoutParams.MATCH_PARENT,
-                            ViewGroup.MarginLayoutParams.WRAP_CONTENT);
+                    LinearLayout.LayoutParams params =
+                            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.WRAP_CONTENT);
                     if (i == 1) {
                         params.topMargin = Utils.dpToPx(8);
                     }
@@ -221,8 +220,8 @@ public class MainActivity extends Activity {
                 if (i != data.columns.length - 1) {
                     View divider = new View(this);
                     dividers.add(divider);
-                    FrameLayout.LayoutParams params =
-                            new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams params =
+                            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                                     Utils.dpToPx(1));
                     params.leftMargin = Utils.dpToPx(72);
                     divider.setLayoutParams(params);
@@ -231,8 +230,6 @@ public class MainActivity extends Activity {
             }
 
             mainRoot.addView(root);
-
-            linesOffset += data.columns.length - 1;
         }
 
         applyColor(false);
@@ -281,9 +278,9 @@ public class MainActivity extends Activity {
         int nightChartDateLabelColor = res.getColor(R.color.night_chartDateLabelColor);
         int foregroundColor = res.getColor(R.color.foregroundColor);
         int nightForegroundColor = res.getColor(R.color.night_foregroundColor);
-        int foregroundBorderColor = res.getColor(R.color.foregroundBorderColor);
+        int foregroundBorderColor = 0x32507da1; //res.getColor(R.color.foregroundBorderColor);
         int nightForegroundBorderColor = res.getColor(R.color.night_foregroundBorderColor);
-        int colorPrimary = res.getColor(R.color.colorPrimary);
+        int colorPrimary = 0xff507da1; //res.getColor(R.color.colorPrimary);
         int nightColorPrimary = res.getColor(R.color.night_colorPrimary);
         int colorPrimaryDark = res.getColor(R.color.colorPrimaryDark);
         int nightColorPrimaryDark = res.getColor(R.color.night_colorPrimaryDark);
@@ -368,9 +365,6 @@ public class MainActivity extends Activity {
                     bigLineBorderView.setChartForegroundBorderColor(foregroundBorderColor);
                     bigLineBorderView.invalidate();
                 }
-                for (BigLineView bigLineView : bigLineViews) {
-                    bigLineView.invalidate();
-                }
 
                 for (TextView textView : textViews) {
                     textView.setTextColor(textColor);
@@ -436,7 +430,7 @@ public class MainActivity extends Activity {
 
         for (LineView lineView : lineViews) {
             ViewGroup.LayoutParams layoutParams = lineView.getLayoutParams();
-            layoutParams.height = Utils.dpToPx(isPortrait ? 400:200);
+            layoutParams.height = Utils.dpToPx(isPortrait ? 400 : 200);
             lineView.setLayoutParams(layoutParams);
         }
     }

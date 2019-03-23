@@ -531,6 +531,7 @@ public class LineView extends View {
                 - Utils.dpToPx(6));
 
         Data.Column columnX = data.columns[0];
+        float maxSelectedY = Float.MAX_VALUE;
         for (int j = 1; j < data.columns.length; j++) {
             if (lineDisabled[j]) continue;
 
@@ -576,6 +577,7 @@ public class LineView extends View {
             if (selectedIndex != -1) {
                 float x = w * (columnX.value[selectedIndex] - fromX) * 1f / (toX - fromX);
                 float y = convertToY(h, column.value[selectedIndex]);
+                maxSelectedY = Math.min(maxSelectedY, y);
 
                 circleP.setColor(column.color);
                 if (lineDisabled[j]) {
@@ -597,11 +599,12 @@ public class LineView extends View {
             int maxX = getWidth() - paddingEnd - Utils.dpToPx(5);
             drawLabel(canvas, paddingStart + x,
                     Math.max(paddingTop + Utils.dpToPx(5), convertToY(h, maxY) - Utils.dpToPx(20)),
-                    minX, maxX, selectedIndex);
+                    minX, maxX, x, maxSelectedY, selectedIndex);
         }
     }
 
-    private void drawLabel(Canvas canvas, float x0, float y0, float minX, float maxX, int index) {
+    private void drawLabel(Canvas canvas, float x0, float y0, float minX, float maxX,
+            float selectedX, float maxSelectedY, int index) {
         float w, h;
         float paddingStart = Utils.dpToPx(10);
         float paddingEnd = Utils.dpToPx(10);
@@ -647,6 +650,13 @@ public class LineView extends View {
         }
 
         float startX = Math.min(maxX - w, Math.max(minX, x0 - w / 6f));
+        if (maxSelectedY < y0 + h + Utils.dpToPx(3)) {
+            if (maxX - selectedX > w + Utils.dpToPx(12)) {
+                startX = selectedX + Utils.dpToPx(6);
+            } else if (selectedX - minX > w + Utils.dpToPx(12)) {
+                startX = selectedX - Utils.dpToPx(6) - w;
+            }
+        }
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             shadowRectF.set(startX - 1, y0 - 1, startX + w + 1, y0 + h + 1);
