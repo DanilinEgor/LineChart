@@ -42,45 +42,25 @@ public class MainActivity extends Activity {
         float[] to;
         float[] from;
         boolean[] checked;
-        if (savedInstanceState == null) {
-            try {
-                datas = DataParser.parse(this);
-            } catch (Exception e) {
-                Log.e("LineView", "Exception: ", e);
-            }
-            from = new float[datas.length];
-            to = new float[datas.length];
-            for (int i = 0; i < from.length; i++) {
-                from[i] = 0.75f;
-                to[i] = 1f;
-            }
+        try {
+            datas = DataParser.parse(this);
+        } catch (Exception e) {
+            Log.e("LineView", "Exception: ", e);
+        }
+        from = new float[datas.length];
+        to = new float[datas.length];
+        for (int i = 0; i < from.length; i++) {
+            from[i] = 0.75f;
+            to[i] = 1f;
+        }
 
-            int linesCount = 0;
-            for (Data data : datas) {
-                linesCount += data.columns.length;
-            }
-            checked = new boolean[linesCount];
-            for (int i = 0; i < linesCount; i++) {
-                checked[i] = true;
-            }
-        } else {
-            datas = (Data[]) savedInstanceState.getParcelableArray("data");
-            from = new float[datas.length];
-            to = new float[datas.length];
-
-            for (int i = 0; i < from.length; i++) {
-                from[i] = savedInstanceState.getFloat(i + "_fromX");
-                to[i] = savedInstanceState.getFloat(i + "_toX");
-            }
-
-            int linesCount = 0;
-            for (Data data : datas) {
-                linesCount += data.columns.length;
-            }
-            checked = new boolean[linesCount];
-            for (int i = 0; i < linesCount; i++) {
-                checked[i] = savedInstanceState.getBoolean(i + "_checked");
-            }
+        int linesCount = 0;
+        for (Data data : datas) {
+            linesCount += data.columns.length;
+        }
+        checked = new boolean[linesCount];
+        for (int i = 0; i < linesCount; i++) {
+            checked[i] = true;
         }
 
         ViewGroup mainRoot = findViewById(R.id.layout_root);
@@ -403,22 +383,7 @@ public class MainActivity extends Activity {
         for (BigLineBorderView bigLineBorderView : bigLineBorderViews) {
             bigLineBorderView.clearListeners();
         }
-        bigLineViews.clear();
-        checkBoxes.clear();
         super.onDestroy();
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putParcelableArray("data", datas);
-        for (int i = 0; i < bigLineViews.size(); i++) {
-            outState.putFloat(i + "_fromX", bigLineViews.get(i).getFromX());
-            outState.putFloat(i + "_toX", bigLineViews.get(i).getToX());
-        }
-        for (int i = 0; i < checkBoxes.size(); i++) {
-            outState.putBoolean(i + "_checked", checkBoxes.get(i).isChecked());
-        }
     }
 
     @Override

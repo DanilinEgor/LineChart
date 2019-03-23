@@ -47,6 +47,8 @@ public class BigLineView extends View {
         p.setStrokeWidth(5f);
         p.setStrokeCap(Paint.Cap.SQUARE);
 
+        setPadding(Utils.dpToPx(7), 0, Utils.dpToPx(7), 0);
+
         setLayerType(LAYER_TYPE_HARDWARE, p);
     }
 
@@ -75,7 +77,7 @@ public class BigLineView extends View {
             //Log.v("BigLineView", "maxY=" + maxY + " step0=" + step0);
         }
 
-        drawLines(canvas, time, w, h);
+        drawLines(canvas, time, w, h, paddingStart, paddingTop);
 
         for (int j = 1; j < data.columns.length; j++) {
             Long lineTime = lineToTime.get(j);
@@ -99,7 +101,8 @@ public class BigLineView extends View {
         }
     }
 
-    private void drawLines(Canvas canvas, long time, int w, int h) {
+    private void drawLines(Canvas canvas, long time, int w, int h, int paddingStart,
+            int paddingTop) {
         Data.Column columnX = data.columns[0];
 
         for (int j = 1; j < data.columns.length; j++) {
@@ -125,8 +128,8 @@ public class BigLineView extends View {
             }
 
             for (int i = 0; i < size; i++) {
-                float startX = w * (columnX.value[i] - minX) * 1f / (maxX - minX);
-                float startY = convertToY(h, column.value[i]);
+                float startX = paddingStart + w * (columnX.value[i] - minX) * 1f / (maxX - minX);
+                float startY = paddingTop + convertToY(h, column.value[i]);
 
                 if (i == 0) {
                     points[4 * i] = startX;

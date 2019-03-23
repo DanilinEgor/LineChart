@@ -178,16 +178,20 @@ public class BigLineBorderView extends View {
         int paddingTop = getPaddingTop();
         int paddingBottom = getPaddingBottom();
 
-        int w = getWidth() - paddingStart - paddingEnd;
+        int w = getWidth() - paddingStart - paddingEnd - 2 * borderW;
         int h = getHeight();
 
-        float startBorder = w * fromX;
-        float endBorder = Math.min(w * toX, w);
+        float startBorder = w * fromX + borderW;
+        float endBorder = Math.min(w * toX, w) + borderW;
 
-        canvas.drawRect(paddingStart, paddingTop, paddingStart + startBorder,
-                getHeight() - paddingBottom, fp);
-        canvas.drawRect(paddingStart + endBorder, paddingTop, getWidth() - paddingEnd,
-                getHeight() - paddingBottom, fp);
+        if (borderW < startBorder - borderW) {
+            canvas.drawRect(paddingStart + borderW, paddingTop,
+                    paddingStart + startBorder - borderW, getHeight() - paddingBottom, fp);
+        }
+        if (paddingStart + endBorder + borderW < getWidth() - paddingEnd - borderW) {
+            canvas.drawRect(paddingStart + endBorder + borderW, paddingTop,
+                    getWidth() - paddingEnd - borderW, getHeight() - paddingBottom, fp);
+        }
 
         //if (isStartPressed) {
         //    m.reset();
@@ -206,15 +210,14 @@ public class BigLineBorderView extends View {
         //    shader.setLocalMatrix(m);
         //}
 
-        canvas.drawRect(paddingStart + startBorder, paddingTop,
-                paddingStart + startBorder + Utils.dpToPx(6), getHeight() - paddingBottom, fp2);
-        canvas.drawRect(paddingStart + endBorder - Utils.dpToPx(6), paddingTop,
+        canvas.drawRect(paddingStart + startBorder - borderW, paddingTop,
+                paddingStart + startBorder, getHeight() - paddingBottom, fp2);
+        canvas.drawRect(paddingStart + endBorder, paddingTop, paddingStart + endBorder + borderW,
+                getHeight() - paddingBottom, fp2);
+        canvas.drawRect(paddingStart + startBorder, paddingTop, paddingStart + endBorder,
+                paddingTop + Utils.dpToPx(2), fp2);
+        canvas.drawRect(paddingStart + startBorder, getHeight() - paddingBottom - Utils.dpToPx(2),
                 paddingStart + endBorder, getHeight() - paddingBottom, fp2);
-        canvas.drawRect(paddingStart + startBorder + Utils.dpToPx(6), paddingTop,
-                paddingStart + endBorder - Utils.dpToPx(6), paddingTop + Utils.dpToPx(2), fp2);
-        canvas.drawRect(paddingStart + startBorder + Utils.dpToPx(6),
-                getHeight() - paddingBottom - Utils.dpToPx(2),
-                paddingStart + endBorder - Utils.dpToPx(6), getHeight() - paddingBottom, fp2);
 
         Log.v("BigLineBorderView", "time=" + (System.currentTimeMillis() - time) + "ms");
     }
