@@ -50,7 +50,7 @@ public class MainActivity extends Activity {
         to = new float[datas.length];
         for (int i = 0; i < from.length; i++) {
             from[i] = 0.75f;
-            to[i] = 1f;
+            to[i] = 2f;
         }
 
         int linesCount = 0;
@@ -91,21 +91,8 @@ public class MainActivity extends Activity {
                         new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                                 isPortrait ? Utils.dpToPx(400) : Utils.dpToPx(200)));
                 lineView.setData(data);
-                //lineView.setLineEnabled(counter - linesOffset, checked[counter]);
             }
             root.addView(lineView);
-
-            //FrameLayout frameLayout = new FrameLayout(this);
-            //{
-            //    LinearLayout.LayoutParams params =
-            //            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-            //                    Utils.dpToPx(50));
-            //    params.topMargin = Utils.dpToPx(8);
-            //    params.leftMargin = Utils.dpToPx(24);
-            //    params.rightMargin = Utils.dpToPx(24);
-            //    frameLayout.setLayoutParams(params);
-            //}
-            //root.addView(frameLayout);
 
             final BigLineView bigLineView = new BigLineView(this);
             bigLineViews.add(bigLineView);
@@ -115,8 +102,6 @@ public class MainActivity extends Activity {
                                 Utils.dpToPx(50));
 
                 params.topMargin = Utils.dpToPx(8);
-                params.leftMargin = Utils.dpToPx(12);
-                params.rightMargin = Utils.dpToPx(12);
 
                 bigLineView.setLayoutParams(params);
                 bigLineView.setData(data);
@@ -131,33 +116,10 @@ public class MainActivity extends Activity {
                         lineView.setTo(to);
                     }
                 });
-                bigLineView.setTo(to[j]);
                 bigLineView.setFrom(from[j]);
+                bigLineView.setTo(to[j]);
             }
             root.addView(bigLineView);
-
-            //final BigLineBorderView bigLineBorderView = new BigLineBorderView(this);
-            //bigLineBorderViews.add(bigLineBorderView);
-            //{
-            //    ViewGroup.LayoutParams params =
-            //            new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-            //                    ViewGroup.LayoutParams.MATCH_PARENT);
-            //    bigLineBorderView.setLayoutParams(params);
-            //    bigLineBorderView.addListener(new BigLineBorderView.MoveListener() {
-            //        @Override
-            //        public void onUpdateFrom(float from) {
-            //            lineView.setFrom(from);
-            //        }
-            //
-            //        @Override
-            //        public void onUpdateTo(float to) {
-            //            lineView.setTo(to);
-            //        }
-            //    });
-            //    bigLineBorderView.setTo(to[j]);
-            //    bigLineBorderView.setFrom(from[j]);
-            //}
-            //frameLayout.addView(bigLineBorderView);
 
             for (int i = 1; i < data.columns.length; i++) {
                 Data.Column column = data.columns[i];
@@ -274,9 +236,9 @@ public class MainActivity extends Activity {
         int nightChartDateLabelColor = res.getColor(R.color.night_chartDateLabelColor);
         int foregroundColor = res.getColor(R.color.foregroundColor);
         int nightForegroundColor = res.getColor(R.color.night_foregroundColor);
-        int foregroundBorderColor = 0x32507da1; //res.getColor(R.color.foregroundBorderColor);
+        int foregroundBorderColor = res.getColor(R.color.foregroundBorderColor);
         int nightForegroundBorderColor = res.getColor(R.color.night_foregroundBorderColor);
-        int colorPrimary = 0xff507da1; //res.getColor(R.color.colorPrimary);
+        int colorPrimary = res.getColor(R.color.colorPrimary);
         int nightColorPrimary = res.getColor(R.color.night_colorPrimary);
         int colorPrimaryDark = res.getColor(R.color.colorPrimaryDark);
         int nightColorPrimaryDark = res.getColor(R.color.night_colorPrimaryDark);

@@ -9,7 +9,6 @@ import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.util.LongSparseArray;
 import android.util.SparseArray;
 import android.view.MotionEvent;
@@ -55,7 +54,7 @@ public class LineView extends View {
     private boolean step0Down;
     private float sw = 0f;
 
-    private SimpleDateFormat labelDateFormat = new SimpleDateFormat("EEE, MMM d", Locale.US);
+    private SimpleDateFormat labelDateFormat = new SimpleDateFormat("EEE, MMM dd", Locale.US);
     private Date date = new Date();
     private Calendar calendar = GregorianCalendar.getInstance();
 
@@ -68,13 +67,15 @@ public class LineView extends View {
     private boolean[] lineDisabled;
     private int selectedIndex = -1;
 
-    float _24dp;
+    int _24dp;
     private int axisColor, axisColorDark;
 
     private String[] axisTexts = new String[5];
     private StringBuilder builder = new StringBuilder();
     private RectF labelRectF = new RectF();
     private RectF shadowRectF = new RectF();
+    private int maxIndex;
+    private int d;
 
     public LineView(Context context) {
         super(context);
@@ -174,15 +175,15 @@ public class LineView extends View {
                     int search = Arrays.binarySearch(columnX, x);
                     int round;
                     if (search < 0) {
-                        round = -search - 1;
+                        round = Math.min(columnX.length - 1, -search - 1);
                     } else {
-                        round = search;
+                        round = Math.min(columnX.length - 1, search);
                     }
-                    int round1 = round - 1;
+                    int round1 = Math.max(round - 1, 0);
                     if (Math.abs(columnX[round] - x) > Math.abs(columnX[round1] - x)) {
                         round = round1;
                     }
-                    int newIndex = Math.min(toIndex - 1, Math.max(round, fromIndex + 1));
+                    int newIndex = Math.min(toIndex - 1, Math.max(round, fromIndex));
                     if (selectedIndex != newIndex) needToInvalidate = true;
                     selectedIndex = newIndex;
                     //Log.v("LineView", "v1=" + v1 + " x=" + x + " index=" + selectedIndex);
@@ -361,6 +362,7 @@ public class LineView extends View {
                     xTextP);
         }
 
+        boolean removed = false;
         //Log.v("LineView", "size1=" + dateIndices.size());
         for (int j = 0; j < dateIndices.size() - 1; ) {
             //Log.v("LineView", "=====");
@@ -370,6 +372,7 @@ public class LineView extends View {
             float x = w * (columnX.value[index] - fromX) * 1f / (toX - fromX);
 
             int k;
+            boolean found = false;
             for (k = j + 1; k < dateIndices.size(); k++) {
                 int mbIndex = dateIndices.get(k);
                 Boolean up = dateToUp.get(mbIndex);
@@ -379,24 +382,31 @@ public class LineView extends View {
                 //Log.v("LineView", "x2 " + x2 + " x=" + x);
                 //Log.v("LineView", "x2 - x - sw=" + (x2 - x - sw));
 
-                if (x2 - x - sw > DATE_MARGIN) break;
+                if (x2 - x - sw > DATE_MARGIN) {
+                    found = true;
+                    break;
+                }
             }
             //Log.v("LineView", "k=" + k);
 
-            for (int i = j + 1; i < k; i++) {
-                //Log.v("LineView", "deleting " + i2 + " dateToTime.get(i2)=" + dateToTime.get(i2));
-                int dateIndex = dateIndices.get(i);
-                if (dateToTime.get(dateIndex) == null) {
-                    //Log.v("LineView", "deleting " + i2);
-                    dateToTime.put(dateIndex, time);
-                    dateToUp.put(dateIndex, false);
-                } else {
-                    if (dateToUp.get(dateIndex)) {
-                        Long l = dateToTime.get(dateIndex);
-                        long l1 = time - l;
-                        long value = l + 2 * l1 - DATE_ANIMATION_DURATION;
-                        dateToTime.put(dateIndex, value);
+            if (found) {
+                for (int i = j + 1; i < k; i++) {
+                    //Log.v("LineView", "deleting " + i2 + " dateToTime.get(i2)=" + dateToTime.get(i2));
+                    int dateIndex = dateIndices.get(i);
+                    if (dateToTime.get(dateIndex) == null) {
+                        //Log.v("LineView", "deleting " + i2);
+                        dateToTime.put(dateIndex, time);
                         dateToUp.put(dateIndex, false);
+                        removed = true;
+                    } else {
+                        if (dateToUp.get(dateIndex)) {
+                            Long l = dateToTime.get(dateIndex);
+                            long l1 = time - l;
+                            long value = l + 2 * l1 - DATE_ANIMATION_DURATION;
+                            dateToTime.put(dateIndex, value);
+                            dateToUp.put(dateIndex, false);
+                            removed = true;
+                        }
                     }
                 }
             }
@@ -404,6 +414,12 @@ public class LineView extends View {
             j = k;
         }
 
+        if (removed) {
+            d = 2 * d + 1;
+            //Log.v("LineView", "d=" + d);
+        }
+
+        boolean added = false;
         int size1 = dateIndices.size();
         for (int j = 0; j < size1 - 1; j++) {
             int i = dateIndices.get(j);
@@ -424,6 +440,7 @@ public class LineView extends View {
                     dateIndices.add(midJ);
                     dateToTime.put(midJ, time);
                     dateToUp.put(midJ, true);
+                    added = true;
                 } else {
                     //Log.v("LineView", "already here, up?=" + dateToUp.get(midJ));
                     if (!dateToUp.get(midJ)) {
@@ -433,9 +450,14 @@ public class LineView extends View {
                         dateIndices.add(midJ);
                         dateToTime.put(midJ, value);
                         dateToUp.put(midJ, true);
+                        added = true;
                     }
                 }
             }
+        }
+        if (added) {
+            d = (d - 1) / 2;
+            //Log.v("LineView", "d=" + d);
         }
 
         if (!dateIndices.isEmpty()) {
@@ -443,14 +465,12 @@ public class LineView extends View {
             float x = w * (columnX.value[lastDate] - fromX) * 1f / (toX - fromX);
             if (w - x - sw / 2f > DATE_MARGIN + sw) {
                 //Log.v("LineView", "w - x - sw / 2f=" + (w - x - sw / 2f));
-                for (int i = columnX.value.length - 1; i > lastDate; i--) {
-                    float checkX = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
-                    if (w - checkX - sw / 2f > 0) {
-                        dateIndices.add(i);
-                        dateToTime.put(i, time);
-                        dateToUp.put(i, true);
-                        break;
-                    }
+                int i = Math.min(maxIndex, lastDate + d + 1);
+                float checkX = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
+                if (w - checkX - sw / 2f > 0) {
+                    dateIndices.add(i);
+                    dateToTime.put(i, time);
+                    dateToUp.put(i, true);
                 }
             }
         }
@@ -460,14 +480,12 @@ public class LineView extends View {
             float x = w * (columnX.value[firstDate] - fromX) * 1f / (toX - fromX);
             if (x - sw / 2f > DATE_MARGIN + sw) {
                 //Log.v("LineView", "x - sw / 2f=" + (x - sw / 2f));
-                for (int i = 0; i < firstDate; i++) {
-                    float checkX = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
-                    if (checkX - sw / 2f > 0 && x - checkX > sw + DATE_MARGIN) {
-                        dateIndices.add(i);
-                        dateToTime.put(i, time);
-                        dateToUp.put(i, true);
-                        break;
-                    }
+                int i = Math.max(0, firstDate - d - 1);
+                float checkX = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
+                if (checkX - sw / 2f > 0 && x - checkX > sw + DATE_MARGIN) {
+                    dateIndices.add(i);
+                    dateToTime.put(i, time);
+                    dateToUp.put(i, true);
                 }
             }
         }
@@ -507,7 +525,7 @@ public class LineView extends View {
 
         //canvas.drawLine(drawX, 0, drawX, h, axisP);
 
-        Log.v("LineView", "time=" + (System.currentTimeMillis() - time) + "ms");
+        //Log.v("LineView", "time=" + (System.currentTimeMillis() - time) + "ms");
 
         if (lineToTime.size() != 0
                 || dateToTime.size() != 0
@@ -713,23 +731,49 @@ public class LineView extends View {
 
         long start = System.currentTimeMillis();
 
-        float lastCenterX = 0f;
-        for (int i = toIndex - 1; i >= fromIndex; i--) {
+        for (int i = toIndex - 1; i >= fromIndex; --i) {
             date.setTime(columnX.value[i]);
             float x = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
-            if (lastCenterX == 0f) {
-                if (w - x - sw / 2f > 0) {
-                    //Log.v("LineView", "x=" + x);
-                    lastCenterX = x;
-                    dateIndices.add(i);
-                }
-            } else {
-                if (lastCenterX - x - sw > DATE_MARGIN) {
-                    //Log.v("LineView", "x=" + x);
-                    lastCenterX = x;
-                    dateIndices.add(i);
-                }
+            if (w - x - sw / 2f > 0) {
+                //Log.v("LineView", "x=" + x);
+                dateIndices.add(i);
+                break;
             }
+        }
+
+        int lastDateIndex = dateIndices.get(0);
+        float lastCenterX = w * (columnX.value[lastDateIndex] - fromX) * 1f / (toX - fromX);
+        d = 1;
+        for (int i = lastDateIndex - 1; i >= fromIndex; i = lastDateIndex - d - 1) {
+            date.setTime(columnX.value[i]);
+            float x = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
+            if (lastCenterX - x - sw > DATE_MARGIN) {
+                //Log.v("LineView", "x=" + x);
+                break;
+            } else {
+                d = d * 2 + 1;
+            }
+        }
+
+        for (int i = dateIndices.get(0) - d - 1; i >= 0; i -= d + 1) {
+            date.setTime(columnX.value[i]);
+            dateIndices.add(i);
+
+            //float x = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
+            //if (lastCenterX == 0f) {
+            //    if (w - x - sw / 2f > 0) {
+            //        //Log.v("LineView", "x=" + x);
+            //        lastCenterX = x;
+            //        dateIndices.add(i);
+            //    }
+            //} else {
+            //    if (lastCenterX - x - sw > DATE_MARGIN) {
+            //        //Log.v("LineView", "x=" + x);
+            //        lastCenterX = x;
+            //        dateIndices.add(i);
+            //    }
+            //}
+            //d = d * 2 + 1;
         }
         Collections.sort(dateIndices);
         //Log.v("LineView", "time=" + (System.currentTimeMillis() - start) + "ms");
@@ -743,6 +787,7 @@ public class LineView extends View {
         points = new float[(columnX.value.length - 1) * 4];
         minX = columnX.value[0];
         maxX = columnX.value[columnX.value.length - 1];
+        maxIndex = columnX.value.length - 1;
         setFrom(0f);
         setTo(1f);
 
@@ -960,13 +1005,13 @@ public class LineView extends View {
     }
 
     private void log() {
-        Log.v("LineView", "fromIndex = "
-                + fromIndex
-                + ", toIndex = "
-                + toIndex
-                + ", maxY = "
-                + maxY
-                + ", step0 = "
-                + step0);
+        //Log.v("LineView", "fromIndex = "
+        //        + fromIndex
+        //        + ", toIndex = "
+        //        + toIndex
+        //        + ", maxY = "
+        //        + maxY
+        //        + ", step0 = "
+        //        + step0);
     }
 }

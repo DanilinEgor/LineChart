@@ -2,7 +2,6 @@ package com.kuxurum.smoothlinechart;
 
 import android.content.Context;
 import android.graphics.Color;
-import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -72,7 +71,7 @@ class DataParser {
         }
 
         long end = System.currentTimeMillis();
-        Log.v("Parser", "parser time=" + (end - start) + "ms");
+        //Log.v("Parser", "parser time=" + (end - start) + "ms");
         return res;
     }
 

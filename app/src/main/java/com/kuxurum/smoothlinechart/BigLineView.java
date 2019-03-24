@@ -6,7 +6,6 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.View;
@@ -42,6 +41,7 @@ public class BigLineView extends View {
     private boolean isInsidePressed = false;
     private List<MoveListener> listeners = new ArrayList<>();
     private float minFraction;
+    private float fromLimit, limit;
     //LinearGradient shader;
     //Matrix m = new Matrix();
 
@@ -66,7 +66,7 @@ public class BigLineView extends View {
         p.setStrokeWidth(5f);
         p.setStrokeCap(Paint.Cap.SQUARE);
 
-        setPadding(Utils.dpToPx(12), 0, Utils.dpToPx(12), 0);
+        setPadding(Utils.dpToPx(24), 0, Utils.dpToPx(24), 0);
         borderW = Utils.dpToPx(6);
 
         fp = new Paint();
@@ -89,6 +89,8 @@ public class BigLineView extends View {
             private float startFromX = 0f;
             private float startToX = 0f;
             private float startY = 0f;
+            private float prevX = 0f;
+            private boolean toRight = false;
 
             @SuppressLint("ClickableViewAccessibility")
             @Override
@@ -108,35 +110,36 @@ public class BigLineView extends View {
                     if (event.getX() > startBorder - 3 * borderW
                             && event.getX() < startBorder + minDist) {
                         isStartPressed = true;
-                        Log.v("BigLineBorderView", "pressed startBorder");
+                        //Log.v("BigLineBorderView", "pressed startBorder");
                     } else if (event.getX() > endBorder - minDist
                             && event.getX() < endBorder + 3 * borderW) {
                         isEndPressed = true;
-                        Log.v("BigLineBorderView", "pressed endBorder");
+                        //Log.v("BigLineBorderView", "pressed endBorder");
                     } else if (event.getX() > startBorder + minDist
                             && event.getX() < endBorder - minDist) {
                         isInsidePressed = true;
-                        Log.v("BigLineBorderView", "pressed inside");
+                        //Log.v("BigLineBorderView", "pressed inside");
                     } else {
-                        Log.v("BigLineBorderView", "pressed outside");
+                        //Log.v("BigLineBorderView", "pressed outside");
                     }
                     startPressX = event.getX();
                     startFromX = fromX;
                     startToX = toX;
-                    Log.v("BigLineBorderView", "startPressX=" + startPressX);
-                    Log.v("BigLineBorderView", "startFromX=" + startFromX);
-                    Log.v("BigLineBorderView", "startBorder=" + startBorder);
+                    //Log.v("BigLineBorderView", "startPressX=" + startPressX);
+                    //Log.v("BigLineBorderView", "startFromX=" + startFromX);
+                    //Log.v("BigLineBorderView", "startBorder=" + startBorder);
                     //drawPic();
                     if (isStartPressed || isInsidePressed || isEndPressed) {
                         colorAnimator.setIntValues(MIN_P_ALPHA, MAX_P_ALPHA);
                         colorAnimator.start();
                     }
+                    prevX = startPressX;
                 } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
                     if (Math.abs(event.getY() - startY) > Utils.dpToPx(30)) {
                         getParent().requestDisallowInterceptTouchEvent(false);
                     }
 
-                    Log.v("BigLineBorderView", "event.getX()=" + event.getX());
+                    //Log.v("BigLineBorderView", "event.getX()=" + event.getX());
                     //Log.v("BigLineBorderView", "toX=" + toX);
                     //Log.v("BigLineBorderView", "fromX=" + fromX);
                     float diff = (event.getX() - startPressX) / w;
@@ -144,22 +147,36 @@ public class BigLineView extends View {
                     if (isStartPressed) {
                         float newFromX = startFromX + diff;
                         setFrom(Math.min(newFromX, toX - minFraction));
+                        setTo(toX);
                     } else if (isEndPressed) {
                         float newToX = startToX + diff;
                         setTo(Math.max(newToX, fromX + minFraction));
+                        setFrom(fromX);
                     } else if (isInsidePressed) {
                         float newFromX = startFromX + diff;
                         float newToX = startToX + diff;
-                        if (newFromX < 0) {
-                            newFromX = 0f;
-                            newToX = startToX - startFromX;
-                        } else if (newToX > 1) {
-                            newToX = 1f;
-                            newFromX = 1 - startToX + startFromX;
+                        //Log.v("BigLineBorderView", "newToX=" + newToX);
+                        //Log.v("BigLineBorderView", "newFromX=" + newFromX);
+                        if (newFromX < 0 - fromLimit) {
+                            newFromX = -fromLimit;
+                            newToX = newFromX - startFromX + startToX;
+                        } else if (newToX > 1f + fromLimit) {
+                            newToX = 1f + fromLimit;
+                            newFromX = newToX - startToX + startFromX;
                         }
                         setFrom(newFromX);
                         setTo(newToX);
                     }
+
+                    boolean wasToRight = toRight;
+                    toRight = event.getX() - prevX > 0;
+                    if (wasToRight != toRight) {
+                        startPressX = event.getX();
+                        startFromX = fromX;
+                        startToX = toX;
+                    }
+
+                    prevX = event.getX();
                 } else if (event.getAction() == MotionEvent.ACTION_CANCEL
                         || event.getAction() == MotionEvent.ACTION_UP) {
                     if (colorAnimator.isStarted()) {
@@ -219,7 +236,7 @@ public class BigLineView extends View {
 
         w = getWidth() - paddingStart - paddingEnd - 2 * borderW;
         float startBorder = w * fromX + borderW;
-        float endBorder = Math.min(w * toX, w) + borderW;
+        float endBorder = w * toX + borderW;
 
         if (borderW < startBorder - borderW) {
             canvas.drawRect(paddingStart + borderW, paddingTop,
@@ -271,7 +288,7 @@ public class BigLineView extends View {
             step0 = (long) (maxY * 0.7f / 5f);
         }
 
-        Log.v("BigLineView", "time=" + (System.currentTimeMillis() - time) + "ms");
+        //Log.v("BigLineView", "time=" + (System.currentTimeMillis() - time) + "ms");
 
         if (lineToTime.size() != 0 || step0Time != 0L) {
             postInvalidateOnAnimation();
@@ -341,6 +358,9 @@ public class BigLineView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
+        limit = Utils.dpToPx(24) * 1f / w;
+
+        //Log.v("BigLineView", "toLimit=" + fromLimit);
         //shader = new LinearGradient(0, h / 2f, w, h / 2f, 0xff507da1, 0x32507da1, Shader.TileMode.CLAMP);
         //fp3.setShader(shader);
     }
@@ -364,7 +384,19 @@ public class BigLineView extends View {
     }
 
     public void setFrom(float from) {
-        fromX = Math.max(0, from);
+        Data.Column columnX = data.columns[0];
+        long minX1 = columnX.value[0];
+        long maxX1 = columnX.value[columnX.value.length - 1];
+
+        long fromX1 = (long) (minX1 + from * (maxX1 - minX1));
+        long toX1 = (long) (minX1 + toX * (maxX1 - minX1));
+
+        fromLimit = Math.min(limit * (toX1 - fromX1) / (maxX1 - minX1),
+                Utils.dpToPx(24) * 1f / (getWidth() + 2 * Utils.dpToPx(24)));
+
+        fromX = Math.max(-fromLimit, from);
+
+        //Log.v("BigLineView", "fromLimit=" + fromLimit);
         for (MoveListener listener : listeners) {
             listener.onUpdateFrom(fromX);
         }
@@ -374,7 +406,19 @@ public class BigLineView extends View {
     }
 
     public void setTo(float to) {
-        toX = Math.min(1, to);
+        Data.Column columnX = data.columns[0];
+        long minX1 = columnX.value[0];
+        long maxX1 = columnX.value[columnX.value.length - 1];
+
+        long fromX1 = (long) (minX1 + fromX * (maxX1 - minX1));
+        long toX1 = (long) (minX1 + to * (maxX1 - minX1));
+
+        fromLimit = Math.min(limit * (toX1 - fromX1) / (maxX1 - minX1),
+                Utils.dpToPx(24) * 1f / (getWidth() + 2 * Utils.dpToPx(24)));
+
+        toX = Math.min(1 + fromLimit, to);
+
+        //Log.v("BigLineView", "toLimit=" + fromLimit);
         for (MoveListener listener : listeners) {
             listener.onUpdateTo(toX);
         }
@@ -434,7 +478,7 @@ public class BigLineView extends View {
     }
 
     private void log() {
-        Log.v("BigLineView", "maxY = " + maxY + ", step0 = " + step0);
+        //Log.v("BigLineView", "maxY = " + maxY + ", step0 = " + step0);
     }
 
     public void setLineEnabled(int index, boolean checked) {
