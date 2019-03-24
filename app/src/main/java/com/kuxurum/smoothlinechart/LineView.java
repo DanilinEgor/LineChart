@@ -731,21 +731,11 @@ public class LineView extends View {
 
         long start = System.currentTimeMillis();
 
-        for (int i = toIndex - 1; i >= fromIndex; --i) {
-            date.setTime(columnX.value[i]);
-            float x = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
-            if (w - x - sw / 2f > 0) {
-                //Log.v("LineView", "x=" + x);
-                dateIndices.add(i);
-                break;
-            }
-        }
-
-        int lastDateIndex = dateIndices.get(0);
+        dateIndices.add(toIndex - 1);
+        int lastDateIndex = toIndex - 1;
         float lastCenterX = w * (columnX.value[lastDateIndex] - fromX) * 1f / (toX - fromX);
         d = 1;
         for (int i = lastDateIndex - 1; i >= fromIndex; i = lastDateIndex - d - 1) {
-            date.setTime(columnX.value[i]);
             float x = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
             if (lastCenterX - x - sw > DATE_MARGIN) {
                 //Log.v("LineView", "x=" + x);
@@ -756,7 +746,6 @@ public class LineView extends View {
         }
 
         for (int i = dateIndices.get(0) - d - 1; i >= 0; i -= d + 1) {
-            date.setTime(columnX.value[i]);
             dateIndices.add(i);
 
             //float x = w * (columnX.value[i] - fromX) * 1f / (toX - fromX);
@@ -776,6 +765,7 @@ public class LineView extends View {
             //d = d * 2 + 1;
         }
         Collections.sort(dateIndices);
+
         //Log.v("LineView", "time=" + (System.currentTimeMillis() - start) + "ms");
     }
 

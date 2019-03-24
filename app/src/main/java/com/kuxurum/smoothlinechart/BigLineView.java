@@ -359,7 +359,10 @@ public class BigLineView extends View {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         limit = Utils.dpToPx(24) * 1f / w;
-
+        if (oldh == 0 && oldw == 0) {
+            setFrom(0.75f);
+            setTo(2f);
+        }
         //Log.v("BigLineView", "toLimit=" + fromLimit);
         //shader = new LinearGradient(0, h / 2f, w, h / 2f, 0xff507da1, 0x32507da1, Shader.TileMode.CLAMP);
         //fp3.setShader(shader);
@@ -388,7 +391,7 @@ public class BigLineView extends View {
         long minX1 = columnX.value[0];
         long maxX1 = columnX.value[columnX.value.length - 1];
 
-        long fromX1 = (long) (minX1 + from * (maxX1 - minX1));
+        long fromX1 = (long) (minX1 + fromX * (maxX1 - minX1));
         long toX1 = (long) (minX1 + toX * (maxX1 - minX1));
 
         fromLimit = Math.min(limit * (toX1 - fromX1) / (maxX1 - minX1),
@@ -411,7 +414,7 @@ public class BigLineView extends View {
         long maxX1 = columnX.value[columnX.value.length - 1];
 
         long fromX1 = (long) (minX1 + fromX * (maxX1 - minX1));
-        long toX1 = (long) (minX1 + to * (maxX1 - minX1));
+        long toX1 = (long) (minX1 + toX * (maxX1 - minX1));
 
         fromLimit = Math.min(limit * (toX1 - fromX1) / (maxX1 - minX1),
                 Utils.dpToPx(24) * 1f / (getWidth() + 2 * Utils.dpToPx(24)));
