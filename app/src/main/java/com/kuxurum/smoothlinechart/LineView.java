@@ -9,6 +9,7 @@ import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.LongSparseArray;
 import android.util.SparseArray;
 import android.view.MotionEvent;
@@ -790,6 +791,7 @@ public class LineView extends View {
 
         fromIndex = Arrays.binarySearch(data.columns[0].value, fromX);
         if (fromIndex < 0) fromIndex = Math.max(-fromIndex - 2, 0);
+        if (toIndex - fromIndex == 1) --fromIndex;
 
         calculateMaxY();
         log();
@@ -995,13 +997,13 @@ public class LineView extends View {
     }
 
     private void log() {
-        //Log.v("LineView", "fromIndex = "
-        //        + fromIndex
-        //        + ", toIndex = "
-        //        + toIndex
-        //        + ", maxY = "
-        //        + maxY
-        //        + ", step0 = "
-        //        + step0);
+        Log.v("LineView", "fromIndex = "
+                + fromIndex
+                + ", toIndex = "
+                + toIndex
+                + ", maxY = "
+                + maxY
+                + ", step0 = "
+                + step0);
     }
 }
