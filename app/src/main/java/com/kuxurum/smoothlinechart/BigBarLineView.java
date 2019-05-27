@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class BigStackedBarLineView extends View {
+public class BigBarLineView extends BaseBigLineView {
     private static int ANIMATION_DURATION = 1000;
     private static int MAX_ALPHA = 255;
     private Data data;
@@ -34,17 +34,10 @@ public class BigStackedBarLineView extends View {
     private SparseArray<Boolean> lineToUp = new SparseArray<>();
     private boolean[] lineDisabled;
 
-    private static final int MIN_P_ALPHA = 50;
-    private static final int MAX_P_ALPHA = 150;
-    private Paint fp, fp2;
-
-    private int borderW;
-    private ValueAnimator colorAnimator = new ValueAnimator();
     private boolean isStartPressed = false;
     private boolean isEndPressed = false;
     private boolean isInsidePressed = false;
     private List<MoveListener> listeners = new ArrayList<>();
-    private float minFraction;
     private float fromLimit, limit;
 
     private int stepIndex = 1;
@@ -52,42 +45,28 @@ public class BigStackedBarLineView extends View {
     //LinearGradient shader;
     //Matrix m = new Matrix();
 
-    public BigStackedBarLineView(Context context) {
+    public BigBarLineView(Context context) {
         super(context);
         init();
     }
 
-    public BigStackedBarLineView(Context context, AttributeSet attrs) {
+    public BigBarLineView(Context context, AttributeSet attrs) {
         super(context, attrs);
         init();
     }
 
-    public BigStackedBarLineView(Context context, AttributeSet attrs, int defStyleAttr) {
+    public BigBarLineView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         init();
     }
 
-    private void init() {
+    void init() {
+        super.init();
+
         p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setStyle(Paint.Style.FILL);
 
         setPadding(Utils.dpToPx(24), 0, Utils.dpToPx(24), 0);
-        borderW = Utils.dpToPx(6);
-
-        fp = new Paint();
-        fp.setStyle(Paint.Style.FILL);
-
-        fp2 = new Paint();
-        fp2.setStyle(Paint.Style.FILL);
-
-        colorAnimator.setDuration(150);
-        colorAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-            @Override
-            public void onAnimationUpdate(ValueAnimator animation) {
-                fp2.setAlpha((int) animation.getAnimatedValue());
-                invalidate();
-            }
-        });
 
         setOnTouchListener(new OnTouchListener() {
             private float startPressX = 0f;
@@ -134,10 +113,6 @@ public class BigStackedBarLineView extends View {
                     //Log.v("BigLineBorderView", "startFromX=" + startFromX);
                     //Log.v("BigLineBorderView", "startBorder=" + startBorder);
                     //drawPic();
-                    if (isStartPressed || isInsidePressed || isEndPressed) {
-                        colorAnimator.setIntValues(MIN_P_ALPHA, MAX_P_ALPHA);
-                        colorAnimator.start();
-                    }
                     prevX = startPressX;
                 } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
                     if (Math.abs(event.getY() - startY) > Utils.dpToPx(30)) {
@@ -148,14 +123,14 @@ public class BigStackedBarLineView extends View {
                     //Log.v("BigLineBorderView", "toX=" + toX);
                     //Log.v("BigLineBorderView", "fromX=" + fromX);
                     float diff = (event.getX() - startPressX) / w;
-
+                    float m = 2f * borderW / w;
                     if (isStartPressed) {
                         float newFromX = startFromX + diff;
-                        setFrom(Math.min(newFromX, toX - minFraction));
+                        setFrom(Math.min(newFromX, toX - m));
                         setTo(toX);
                     } else if (isEndPressed) {
                         float newToX = startToX + diff;
-                        setTo(Math.max(newToX, fromX + minFraction));
+                        setTo(Math.max(newToX, fromX + m));
                         setFrom(fromX);
                     } else if (isInsidePressed) {
                         float newFromX = startFromX + diff;
@@ -184,13 +159,6 @@ public class BigStackedBarLineView extends View {
                     prevX = event.getX();
                 } else if (event.getAction() == MotionEvent.ACTION_CANCEL
                         || event.getAction() == MotionEvent.ACTION_UP) {
-                    if (colorAnimator.isStarted()) {
-                        colorAnimator.cancel();
-                    }
-                    if (isStartPressed || isEndPressed || isInsidePressed) {
-                        colorAnimator.setIntValues(MAX_P_ALPHA, MIN_P_ALPHA);
-                        colorAnimator.start();
-                    }
                     getParent().requestDisallowInterceptTouchEvent(false);
                     isStartPressed = false;
                     isEndPressed = false;
@@ -203,15 +171,6 @@ public class BigStackedBarLineView extends View {
         });
     }
 
-    void setChartForegroundColor(int color) {
-        fp.setColor(color);
-    }
-
-    void setChartForegroundBorderColor(int color) {
-        fp2.setColor(color);
-        fp2.setAlpha(MIN_P_ALPHA);
-    }
-
     @Override
     protected void onDraw(Canvas canvas) {
         long time = System.currentTimeMillis();
@@ -222,8 +181,8 @@ public class BigStackedBarLineView extends View {
         int paddingTop = getPaddingTop();
         int paddingBottom = getPaddingBottom();
 
-        int w = getWidth() - paddingStart - paddingEnd - 2 * Utils.dpToPx(7);
-        int h = getHeight() - paddingTop - paddingBottom - Utils.dpToPx(5);
+        int w = getWidth() - paddingStart - paddingEnd - 2 * borderW;
+        int h = (getHeight() - paddingBottom - paddingTop - Utils.dpToPx(2));
 
         //canvas.clipRect(paddingStart, paddingTop, getWidth() - paddingEnd,
         //        getHeight() - paddingBottom);
@@ -240,47 +199,14 @@ public class BigStackedBarLineView extends View {
             //Log.v("BigLineView", "maxY=" + maxY + " step0=" + step0);
         }
 
-        drawLines(canvas, time, w, h, paddingStart + Utils.dpToPx(7), paddingTop,
-                paddingEnd + Utils.dpToPx(7));
+        drawLines(canvas, time, w, paddingStart, paddingTop, paddingEnd, paddingBottom);
 
         w = getWidth() - paddingStart - paddingEnd - 2 * borderW;
         float startBorder = w * fromX + borderW;
         float endBorder = w * toX + borderW;
 
-        if (borderW < startBorder - borderW) {
-            canvas.drawRect(paddingStart + borderW, paddingTop,
-                    paddingStart + startBorder - borderW, getHeight() - paddingBottom, fp);
-        }
-        if (paddingStart + endBorder + borderW < getWidth() - paddingEnd - borderW) {
-            canvas.drawRect(paddingStart + endBorder + borderW, paddingTop,
-                    getWidth() - paddingEnd - borderW, getHeight() - paddingBottom, fp);
-        }
-
-        //if (isStartPressed) {
-        //    m.reset();
-        //    m.postScale(toX - fromX, 1f);
-        //    m.postTranslate(startBorder, 0);
-        //    shader.setLocalMatrix(m);
-        //} else if (isEndPressed) {
-        //    m.reset();
-        //    m.postScale(-1, 1, w / 2f, h / 2f);
-        //    m.postScale(toX - fromX, 1f);
-        //    m.postTranslate(startBorder, 0);
-        //    shader.setLocalMatrix(m);
-        //} else if (isInsidePressed) {
-        //    m.reset();
-        //    m.postTranslate(w, 0);
-        //    shader.setLocalMatrix(m);
-        //}
-
-        canvas.drawRect(paddingStart + startBorder - borderW, paddingTop,
-                paddingStart + startBorder, getHeight() - paddingBottom, fp2);
-        canvas.drawRect(paddingStart + endBorder, paddingTop, paddingStart + endBorder + borderW,
-                getHeight() - paddingBottom, fp2);
-        canvas.drawRect(paddingStart + startBorder, paddingTop, paddingStart + endBorder,
-                paddingTop + Utils.dpToPx(2), fp2);
-        canvas.drawRect(paddingStart + startBorder, getHeight() - paddingBottom - Utils.dpToPx(2),
-                paddingStart + endBorder, getHeight() - paddingBottom, fp2);
+        drawBorder(canvas, startBorder, endBorder, paddingStart, paddingTop, paddingEnd,
+                paddingBottom);
 
         for (int j = 1; j < data.columns.length; j++) {
             Long lineTime = lineToTime.get(j);
@@ -312,11 +238,11 @@ public class BigStackedBarLineView extends View {
         //        paddingStart + endBorder + 3 * borderW, h, p);
     }
 
-    private void drawLines(Canvas canvas, long time, int w, int h, int paddingStart, int paddingTop,
-            int paddingEnd) {
+    private void drawLines(Canvas canvas, long time, int w, int paddingStart, int paddingTop,
+            int paddingEnd, int paddingBottom) {
         Data.Column columnX = data.columns[0];
 
-        int size = columnX.value.length;
+        int h = (getHeight() - paddingBottom - paddingTop - Utils.dpToPx(2));
 
         for (int i = fromIndex; i < toIndex; i += stepIndex) {
             long prevMinY = 0;
@@ -329,51 +255,32 @@ public class BigStackedBarLineView extends View {
                 p.setColor(column.color);
 
                 float y = column.value[i] + progress * diff.columns[j].value[i];
-                if (j == 1) {
-                    Log.v("lines", "y="
-                            + y
-                            + " diff="
-                            + diff.columns[j].value[i]
-                            + " progress="
-                            + progress);
-                }
                 if (lineToTime.get(j) != null) {
-                    //int alpha;
+                    float k;
                     if (lineToUp.get(j)) {
-                        float k = Math.min(1,
+                        k = Math.min(1,
                                 Math.max(0, (time - lineToTime.get(j)) * 1f / ANIMATION_DURATION));
-                        Log.v("SV", "k=" + k);
-                        y *= k;
-                        //alpha = Math.min(
-                        //        (int) (1f * MAX_ALPHA / ANIMATION_DURATION * (time - lineToTime.get(
-                        //                j))), MAX_ALPHA);
                     } else {
-                        float k = Math.min(1, Math.max(0,
+                        k = Math.min(1, Math.max(0,
                                 1 + (lineToTime.get(j) - time) * 1f / ANIMATION_DURATION));
-                        Log.v("SV", "k=" + k);
-                        y *= k;
-
-                        //alpha = Math.max(
-                        //        (int) (1f * MAX_ALPHA / ANIMATION_DURATION * (lineToTime.get(j)
-                        //                - time + ANIMATION_DURATION)), 0);
                     }
-                    //p.setAlpha(alpha);
-                } else {
-                    //if (p.getAlpha() != MAX_ALPHA) p.setAlpha(MAX_ALPHA);
+                    y *= k;
                 }
 
-                float startX = Math.min(getWidth() - paddingEnd, Math.max(paddingStart,
-                        paddingStart + w * (columnX.value[i] - minX) * 1f / (maxX - minX)));
-                float stopX = Math.min(getWidth() - paddingEnd, Math.max(paddingStart, paddingStart
-                        + w * (columnX.value[Math.min(i + stepIndex,
-                        data.columns[0].value.length - 1)] - minX) * 1f / (maxX - minX)));
-                float startY = Utils.dpToPx(2) + paddingTop + convertToY(h, prevMinY + (long) y);
-                float stopY = Utils.dpToPx(2) + paddingTop + convertToY(h, prevMinY);
+                float startX = Math.min(getWidth() - paddingEnd - borderW,
+                        Math.max(paddingStart + borderW,
+                                paddingStart + borderW + w * (columnX.value[i] - minX) * 1f / (maxX
+                                        - minX)));
+                float stopX = Math.min(getWidth() - paddingEnd - borderW,
+                        Math.max(paddingStart + borderW, paddingStart
+                                + borderW
+                                + w * (columnX.value[Math.min(i + stepIndex,
+                                data.columns[0].value.length - 1)] - minX) * 1f / (maxX - minX)));
+                float startY = Utils.dpToPx(1) + paddingTop + convertToY(h, prevMinY + (long) y);
+                float stopY = Utils.dpToPx(1) + paddingTop + convertToY(h, prevMinY);
 
                 canvas.drawRect((float) Math.floor(startX), startY, (float) Math.ceil(stopX), stopY,
                         p);
-
-                //canvas.drawLine(startX, 0, startX, h, fp2);
 
                 prevMinY += y;
             }
@@ -381,7 +288,7 @@ public class BigStackedBarLineView extends View {
     }
 
     private float convertToY(int h, long y) {
-        return h - h * y * 1f / (maxY + step0) - 1;
+        return h - h * y * 1f / (maxY + step0);
     }
 
     @Override
@@ -421,7 +328,6 @@ public class BigStackedBarLineView extends View {
         toIndex = columnX.value.length - 1;
         minX = columnX.value[0];
         maxX = columnX.value[columnX.value.length - 1];
-        minFraction = 12 * 60 * 60 * 1000f / (maxX - minX);
     }
 
     public void setData(Data data) {
@@ -440,7 +346,6 @@ public class BigStackedBarLineView extends View {
         toIndex = columnX.value.length - 1;
         minX = columnX.value[0];
         maxX = columnX.value[columnX.value.length - 1];
-        minFraction = 12 * 60 * 60 * 1000f / (maxX - minX);
 
         //setFrom(0f);
         //setTo(1f);
@@ -457,9 +362,9 @@ public class BigStackedBarLineView extends View {
         //this.minX = minX;
         //this.maxX = maxX;
 
-        int fromIndex = Arrays.binarySearch(BigStackedBarLineView.this.data.columns[0].value, minX);
+        int fromIndex = Arrays.binarySearch(BigBarLineView.this.data.columns[0].value, minX);
         if (fromIndex < 0) fromIndex = -fromIndex - 1;
-        int toIndex = Arrays.binarySearch(BigStackedBarLineView.this.data.columns[0].value, maxX);
+        int toIndex = Arrays.binarySearch(BigBarLineView.this.data.columns[0].value, maxX);
         if (toIndex < 0) toIndex = -toIndex - 1;
 
         PropertyValuesHolder minProp = PropertyValuesHolder.ofFloat("min", this.minX, minX);
@@ -469,28 +374,24 @@ public class BigStackedBarLineView extends View {
         valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
-                BigStackedBarLineView.this.minX =
-                        ((Float) animation.getAnimatedValue("min")).longValue();
-                BigStackedBarLineView.this.maxX =
-                        ((Float) animation.getAnimatedValue("max")).longValue();
+                BigBarLineView.this.minX = ((Float) animation.getAnimatedValue("min")).longValue();
+                BigBarLineView.this.maxX = ((Float) animation.getAnimatedValue("max")).longValue();
                 //BigStackedBarLineView.this.minX =
                 //        data.columns[0].value[BigStackedBarLineView.this.fromIndex];
                 //BigStackedBarLineView.this.maxX =
                 //        data.columns[0].value[BigStackedBarLineView.this.toIndex];
-                Log.v("lines", "minX="
-                        + BigStackedBarLineView.this.minX
-                        + " maxX="
-                        + BigStackedBarLineView.this.maxX);
+                Log.v("lines",
+                        "minX=" + BigBarLineView.this.minX + " maxX=" + BigBarLineView.this.maxX);
                 calculateMaxY();
 
                 long start = System.currentTimeMillis();
-                Data.Column columnX = BigStackedBarLineView.this.data.columns[0];
+                Data.Column columnX = BigBarLineView.this.data.columns[0];
                 float diff = 0;
                 stepIndex = 0;
                 while (diff < getWidth() / 100f) {
                     diff = getWidth() * (columnX.value[++stepIndex] - columnX.value[0]) * 1f / (
-                            BigStackedBarLineView.this.maxX
-                                    - BigStackedBarLineView.this.minX);
+                            BigBarLineView.this.maxX
+                                    - BigBarLineView.this.minX);
                 }
                 long end = System.currentTimeMillis();
                 Log.v("lines", (end - start) + "ms");
@@ -525,7 +426,7 @@ public class BigStackedBarLineView extends View {
                     copy.columns[i] = column;
                 }
 
-                Data local = BigStackedBarLineView.this.data;
+                Data local = BigBarLineView.this.data;
 
                 for (int j = 0; j < 7; j++) {
                     for (int i = 1; i < copy.columns.length; i++) {
@@ -536,16 +437,20 @@ public class BigStackedBarLineView extends View {
 
                 setDataWithoutUpdate(data);
 
-                for (int j = BigStackedBarLineView.this.fromIndex; j < BigStackedBarLineView.this.toIndex; ++j) {
-                    if (data.columns[0].value[j] < BigStackedBarLineView.this.minX || data.columns[0].value[j] > BigStackedBarLineView.this.maxX) continue;
+                for (int j = BigBarLineView.this.fromIndex; j < BigBarLineView.this.toIndex; ++j) {
+                    if (data.columns[0].value[j] < BigBarLineView.this.minX
+                            || data.columns[0].value[j] > BigBarLineView.this.maxX) {
+                        continue;
+                    }
                     long sum = 0;
                     for (int i = 1; i < data.columns.length; i++) {
-                        if (lineDisabled[i] || lineToTime.get(i) != null && !lineToUp.get(i)) continue;
+                        if (lineDisabled[i] || lineToTime.get(i) != null && !lineToUp.get(i)) {
+                            continue;
+                        }
                         sum += data.columns[i].value[j];
                     }
                     maxY = Math.max(maxY, sum);
                 }
-
 
                 for (int i = 1; i < copy.columns.length; i++) {
                     Data.Column columnCopy = copy.columns[i];
@@ -664,7 +569,7 @@ public class BigStackedBarLineView extends View {
         Log.v("lines", "maxY=" + maxY);
         if (prevMaxY != maxY) {
             long time = System.currentTimeMillis();
-            BigStackedBarLineView.this.maxY = maxY;
+            BigBarLineView.this.maxY = maxY;
 
             int prev;
             if (step0Time == 0L) {

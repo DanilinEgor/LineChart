@@ -1,19 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <ripple android:color="#40000000">
-            <item android:id="@android:id/mask">
-                <shape>
-                    <solid android:color="#000" />
-                    <corners android:radius="16dp" />
-                </shape>
-            </item>
-            <item>
-                <shape>
-                    <corners android:radius="16dp" />
-                    <solid android:color="@color/chartLabelBackground" />
-                </shape>
-            </item>
-        </ripple>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape>
+            <solid android:color="@color/bg_pressed" />
+            <corners android:radius="16dp" />
+        </shape>
     </item>
-</layer-list>
+    <item>
+        <shape>
+            <solid android:color="@color/chartLabelBackground" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
+</selector>
+
+    <!--<?xml version="1.0" encoding="utf-8"?>--><!--<ripple xmlns:android="http://schemas.android.com/apk/res/android"--><!--android:color="#40000000">--><!--<item android:id="@android:id/mask">--><!--<shape>--><!--<solid android:color="#000" />--><!--<corners android:radius="16dp" />--><!--</shape>--><!--</item>--><!--<item>--><!--<shape>--><!--<corners android:radius="16dp" />--><!--<solid android:color="@color/chartLabelBackground" />--><!--</shape>--><!--</item>--><!--</ripple>-->

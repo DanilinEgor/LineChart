@@ -11,7 +11,7 @@ import android.view.View;
 import java.util.ArrayList;
 import java.util.List;
 
-public class BigLineView extends BaseBigLineView {
+public class BigTwoAxisLineView extends BaseBigLineView {
     private static int ANIMATION_DURATION = 200;
     private static int MAX_ALPHA = 255;
     private Data data;
@@ -19,11 +19,23 @@ public class BigLineView extends BaseBigLineView {
     private float[] points;
 
     private long minX, maxX;
-    private long maxY, prevMaxY;
+    private long maxY, minY;
+    private long maxY2, minY2;
     private float fromX, toX;
+
     private long step0, step0Time;
     private float step0k, step0b;
     private boolean step0Down;
+    private long step1, step1Time;
+    private float step1k, step1b;
+    private boolean step1Down;
+
+    private long step02, step02Time;
+    private float step02k, step02b;
+    private boolean step02Down;
+    private long step12, step12Time;
+    private float step12k, step12b;
+    private boolean step12Down;
 
     private SparseArray<Long> lineToTime = new SparseArray<>();
     private SparseArray<Boolean> lineToUp = new SparseArray<>();
@@ -35,17 +47,17 @@ public class BigLineView extends BaseBigLineView {
     private List<MoveListener> listeners = new ArrayList<>();
     private float fromLimit, limit;
 
-    public BigLineView(Context context) {
+    public BigTwoAxisLineView(Context context) {
         super(context);
         init();
     }
 
-    public BigLineView(Context context, AttributeSet attrs) {
+    public BigTwoAxisLineView(Context context, AttributeSet attrs) {
         super(context, attrs);
         init();
     }
 
-    public BigLineView(Context context, AttributeSet attrs, int defStyleAttr) {
+    public BigTwoAxisLineView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         init();
     }
@@ -181,11 +193,41 @@ public class BigLineView extends BaseBigLineView {
         if (step0Time != 0L) {
             step0 = (long) (step0k * (time - step0Time) + step0b);
             if (step0Down) {
-                step0 = Math.min(step0, (long) (maxY * 0.7f / 5f));
+                step0 = Math.min(step0, (long) ((maxY - minY) * 0.2f / 5f));
             } else {
-                step0 = Math.max(step0, (long) (maxY * 0.7f / 5f));
+                step0 = Math.max(step0, (long) ((maxY - minY) * 0.2f / 5f));
             }
-            //Log.v("BigLineView", "maxY=" + maxY + " step0=" + step0);
+            //Log.v("TwoAxisLineView", "maxY=" + maxY + " step0=" + step0);
+        }
+
+        if (step1Time != 0L) {
+            step1 = (long) (step1k * (time - step1Time) + step1b);
+            if (step1Down) {
+                step1 = Math.min(step1, 0);
+            } else {
+                step1 = Math.max(step1, 0);
+            }
+            //Log.v("TwoAxisLineView", "maxY=" + maxY + " step1=" + step1);
+        }
+
+        if (step02Time != 0L) {
+            step02 = (long) (step02k * (time - step02Time) + step02b);
+            if (step02Down) {
+                step02 = Math.min(step02, (long) ((maxY2 - minY2) * 0.2f / 5f));
+            } else {
+                step02 = Math.max(step02, (long) ((maxY2 - minY2) * 0.2f / 5f));
+            }
+            //Log.v("TwoAxisLineView", "maxY=" + maxY + " step02=" + step02);
+        }
+
+        if (step12Time != 0L) {
+            step12 = (long) (step12k * (time - step12Time) + step12b);
+            if (step12Down) {
+                step12 = Math.min(step12, 0);
+            } else {
+                step12 = Math.max(step12, 0);
+            }
+            //Log.v("TwoAxisLineView", "maxY=" + maxY + " step1=" + step1);
         }
 
         drawLines(canvas, time, w, paddingStart, paddingTop, paddingEnd, paddingBottom);
@@ -209,12 +251,30 @@ public class BigLineView extends BaseBigLineView {
 
         if (time - step0Time > ANIMATION_DURATION) {
             step0Time = 0L;
-            step0 = (long) (maxY * 0.7f / 5f);
+            step0 = (long) ((maxY - minY) * 0.2f / 5f);
+        }
+
+        if (time - step1Time > ANIMATION_DURATION) {
+            step1Time = 0L;
+            step1 = 0;
+        }
+        if (time - step02Time > ANIMATION_DURATION) {
+            step02Time = 0L;
+            step02 = (long) ((maxY2 - minY2) * 0.2f / 5f);
+        }
+
+        if (time - step12Time > ANIMATION_DURATION) {
+            step12Time = 0L;
+            step12 = 0;
         }
 
         //Log.v("BigLineView", "time=" + (System.currentTimeMillis() - time) + "ms");
 
-        if (lineToTime.size() != 0 || step0Time != 0L) {
+        if (lineToTime.size() != 0
+                || step0Time != 0L
+                || step1Time != 0L
+                || step02Time != 0L
+                || step12Time != 0L) {
             postInvalidateOnAnimation();
         }
 
@@ -256,7 +316,12 @@ public class BigLineView extends BaseBigLineView {
             for (int i = 0; i < size; i++) {
                 float startX =
                         paddingStart + borderW + w * (columnX.value[i] - minX) * 1f / (maxX - minX);
-                float startY = Utils.dpToPx(1) + paddingTop + convertToY(h, column.value[i]);
+                float startY;
+                if (j == 1) {
+                    startY = Utils.dpToPx(1) + paddingTop + convertToY(h, column.value[i]);
+                } else {
+                    startY = Utils.dpToPx(1) + paddingTop + convertToY2(h, column.value[i]);
+                }
 
                 if (i == 0) {
                     points[4 * i] = startX;
@@ -278,7 +343,11 @@ public class BigLineView extends BaseBigLineView {
     }
 
     private float convertToY(int h, long y) {
-        return h - h * y * 1f / (maxY + step0);
+        return h - h * (y - minY - step1) * 1f / (maxY - minY + step0 - step1);
+    }
+
+    private float convertToY2(int h, float y) {
+        return h - h * (y - minY2 - step12) * 1f / (maxY2 - minY2 + step02 - step12);
     }
 
     @Override
@@ -306,7 +375,7 @@ public class BigLineView extends BaseBigLineView {
         setFrom(0f);
         setTo(1f);
 
-        calculateMaxY();
+        calculateMinMaxY();
 
         invalidate();
     }
@@ -355,54 +424,169 @@ public class BigLineView extends BaseBigLineView {
         invalidate();
     }
 
-    private void calculateMaxY() {
-        long maxY = 0;
-        for (int i = 1; i < data.columns.length; i++) {
-            if (lineDisabled[i] || lineToTime.get(i) != null && !lineToUp.get(i)) continue;
-            long[] y = data.columns[i].value;
+    private void calculateMinMaxY() {
+        long time = System.currentTimeMillis();
+
+        long prevMinY = minY;
+        minY = Long.MAX_VALUE;
+        {
+            //if (lineDisabled[1] || lineToTime.get(1) != null && !lineToUp.get(1)) continue;
+            long[] y = data.columns[1].value;
+            for (long aY : y) {
+                minY = Math.min(minY, aY);
+            }
+        }
+
+        int pow = 10;
+        if (minY >= 133) {
+            long min = (long) (minY * 10f / 11f);
+            long max = (long) (minY * 50f / 51f);
+
+            while (true) {
+                long prevMax = max;
+                max = max - max % pow;
+                if (max < min) {
+                    minY = prevMax;
+                    break;
+                }
+                pow *= 10;
+            }
+        } else if (minY > 0) {
+            minY = minY - minY % 10 + 10;
+        }
+
+        if (prevMinY != minY) {
+            int prev;
+            if (step1Time == 0L) {
+                prev = (int) (prevMinY - minY);
+            } else {
+                prev = (int) (prevMinY + step1 - minY);
+            }
+
+            int next = 0;
+
+            step1Time = time;
+            step1k = (next - prev) * 1f / ANIMATION_DURATION;
+            step1b = prev;
+            step1Down = next > prev;
+        }
+
+        long prevMaxY = maxY;
+        maxY = 0;
+        {
+            //if (lineDisabled[1] || lineToTime.get(1) != null && !lineToUp.get(1)) continue;
+            long[] y = data.columns[1].value;
             for (long aY : y) {
                 maxY = Math.max(maxY, aY);
             }
         }
 
-        if (maxY >= 133) {
-            long min = (long) (maxY * 10f / 11f);
-            long max = (long) (maxY * 50f / 51f);
-
-            int pow = 10;
-            while (true) {
-                long prevMax = max;
-                max = max - max % pow;
-                if (max < min) {
-                    maxY = prevMax;
-                    break;
-                }
-                pow *= 10;
-            }
-        } else if (maxY > 0) {
-            maxY = maxY - maxY % 10 + 10;
-        }
+        pow /= 10;
+        maxY = (long) ((maxY / pow + (maxY % pow * 1f / pow > 0.5f ? 1 : 0.5f)) * pow);
 
         if (prevMaxY != maxY) {
-            long time = System.currentTimeMillis();
-            BigLineView.this.maxY = maxY;
-
             int prev;
             if (step0Time == 0L) {
-                prev = (int) (prevMaxY * 0.7f / 5f + prevMaxY - maxY);
+                prev = (int) ((prevMaxY - prevMinY) * 0.2f / 5f + prevMaxY - maxY);
             } else {
                 prev = (int) (prevMaxY + step0 - maxY);
             }
 
-            int next = (int) (maxY * 0.7f / 5f);
+            int next = (int) ((maxY - minY) * 0.2f / 5f);
 
             step0Time = time;
             step0k = (next - prev) * 1f / ANIMATION_DURATION;
             step0b = prev;
             step0Down = next > prev;
-
-            prevMaxY = maxY;
         }
+
+        calculateMinMaxY2();
+    }
+
+    private void calculateMinMaxY2() {
+        long time = System.currentTimeMillis();
+
+        long prevMinY2 = minY2;
+        minY2 = Long.MAX_VALUE;
+        {
+            //if (lineDisabled[2] || lineToTime.get(2) != null && !lineToUp.get(2)) continue;
+            long[] y = data.columns[2].value;
+            for (long aY : y) {
+                minY2 = Math.min(minY2, aY);
+            }
+        }
+
+        int pow = 10;
+        if (minY2 >= 133) {
+            long min = (long) (minY2 * 10f / 11f);
+            long max = (long) (minY2 * 50f / 51f);
+
+            while (true) {
+                long prevMax = max;
+                max = max - max % pow;
+                if (max < min) {
+                    minY2 = prevMax;
+                    break;
+                }
+                pow *= 10;
+            }
+        } else if (minY2 > 0) {
+            minY2 = minY2 - minY2 % 10 + 10;
+        }
+
+        if (prevMinY2 != minY2) {
+            int prev;
+            if (step12Time == 0L) {
+                prev = (int) (prevMinY2 - minY2);
+            } else {
+                prev = (int) (prevMinY2 + step12 - minY2);
+            }
+
+            int next = 0;
+
+            step12Time = time;
+            step12k = (next - prev) * 1f / ANIMATION_DURATION;
+            step12b = prev;
+            step12Down = next > prev;
+        }
+
+        long prevMaxY2 = maxY2;
+        maxY2 = 0;
+        {
+            //if (lineDisabled[2] || lineToTime.get(2) != null && !lineToUp.get(2)) continue;
+            long[] y = data.columns[2].value;
+            for (long aY : y) {
+                maxY2 = Math.max(maxY2, aY);
+            }
+        }
+
+        pow /= 10;
+        maxY2 = (long) ((maxY2 / pow + (maxY2 % pow * 1f / pow > 0.5f ? 1 : 0.5f)) * pow);
+
+        if (prevMaxY2 != maxY2) {
+            int prev;
+            if (step02Time == 0L) {
+                prev = (int) ((prevMaxY2 - prevMinY2) * 0.2f / 5f + prevMaxY2 - maxY2);
+            } else {
+                prev = (int) (prevMaxY2 + step02 - maxY2);
+            }
+
+            int next = (int) ((maxY2 - minY2) * 0.2f / 5f);
+
+            step02Time = time;
+            step02k = (next - prev) * 1f / ANIMATION_DURATION;
+            step02b = prev;
+            step02Down = next > prev;
+        }
+
+        //Log.v("BigTwoAxisLineView", "maxY2 = "
+        //        + maxY2
+        //        + ", minY2 = "
+        //        + minY2
+        //        + ", step02 = "
+        //        + step02
+        //        + ", step12 = "
+        //        + step12);
     }
 
     private void log() {
@@ -421,7 +605,7 @@ public class BigLineView extends BaseBigLineView {
         }
         lineToUp.put(index, checked);
         if (checked) lineDisabled[index] = false;
-        calculateMaxY();
+        calculateMinMaxY();
         log();
         invalidate();
     }

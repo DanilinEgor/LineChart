@@ -2,6 +2,7 @@ package com.kuxurum.smoothlinechart;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -12,16 +13,16 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 class DataParser {
-    static Data[] parse(Context context) throws IOException, JSONException {
+    static Data[] parse(Context context, String name) throws IOException, JSONException {
         long start = System.currentTimeMillis();
 
-        InputStream stream = context.getResources().getAssets().open("chart_data.json");
+        InputStream stream = context.getResources().getAssets().open(name);
         int size = stream.available();
         byte[] buffer = new byte[size];
         stream.read(buffer);
         stream.close();
         String json = new String(buffer);
-        JSONArray array = new JSONArray(json);
+        JSONArray array = new JSONArray("["+json+"]");
 
         Data[] res = new Data[array.length()];
         for (int i = 0; i < array.length(); i++) {
@@ -43,6 +44,9 @@ class DataParser {
 
             Data data = new Data();
             data.columns = new Data.Column[columns.length()];
+            data.percentage = root.optBoolean("percentage", false);
+            data.stacked = root.optBoolean("stacked", false);
+            data.yScaled = root.optBoolean("y_scaled", false);
 
             JSONObject names = root.getJSONObject("names");
             JSONObject colors = root.getJSONObject("colors");
@@ -52,6 +56,14 @@ class DataParser {
                 Wrapper.WrapperColumn column = wrapper.columns.get(j);
                 if (types.getString(column.label).equals("x") && j != 0) {
                     Collections.swap(wrapper.columns, 0, j);
+                    break;
+                }
+            }
+
+            for (int j = 0; j < wrapper.columns.size(); j++) {
+                Wrapper.WrapperColumn column = wrapper.columns.get(j);
+                if (types.getString(column.label).equals("bar")) {
+                    data.hasBars = true;
                     break;
                 }
             }
@@ -71,7 +83,7 @@ class DataParser {
         }
 
         long end = System.currentTimeMillis();
-        //Log.v("Parser", "parser time=" + (end - start) + "ms");
+        Log.v("Parser", "parser time=" + (end - start) + "ms");
         return res;
     }
 

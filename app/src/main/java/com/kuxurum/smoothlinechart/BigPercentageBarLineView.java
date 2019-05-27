@@ -7,6 +7,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.SparseArray;
@@ -16,8 +17,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class BigStackedBarLineView extends View {
-    private static int ANIMATION_DURATION = 1000;
+public class BigPercentageBarLineView extends BaseBigLineView {
+    private static int ANIMATION_DURATION = 500;
     private static int MAX_ALPHA = 255;
     private Data data;
     private Paint p;
@@ -26,68 +27,54 @@ public class BigStackedBarLineView extends View {
     private int fromIndex, toIndex;
     private long maxY, prevMaxY;
     private float fromX, toX;
-    private long step0, step0Time;
-    private float step0k, step0b;
-    private boolean step0Down;
+    private float fromXDetailed, toXDetailed;
 
     private SparseArray<Long> lineToTime = new SparseArray<>();
     private SparseArray<Boolean> lineToUp = new SparseArray<>();
     private boolean[] lineDisabled;
 
-    private static final int MIN_P_ALPHA = 50;
-    private static final int MAX_P_ALPHA = 150;
-    private Paint fp, fp2;
+    private static final int MIN_P_ALPHA = 128;
+    private static final int MAX_P_ALPHA = 128;
 
-    private int borderW;
-    private ValueAnimator colorAnimator = new ValueAnimator();
     private boolean isStartPressed = false;
     private boolean isEndPressed = false;
     private boolean isInsidePressed = false;
     private List<MoveListener> listeners = new ArrayList<>();
-    private float minFraction;
     private float fromLimit, limit;
 
     private int stepIndex = 1;
+    float[][] coords;
+    Path[] paths;
 
-    //LinearGradient shader;
-    //Matrix m = new Matrix();
+    private static final int WHOLE = 0;
+    private static final int ANIMATING = 1;
+    private static final int DETAILED = 2;
+    private int state = WHOLE;
 
-    public BigStackedBarLineView(Context context) {
+    private float oldFrom, oldTo;
+
+    public BigPercentageBarLineView(Context context) {
         super(context);
         init();
     }
 
-    public BigStackedBarLineView(Context context, AttributeSet attrs) {
+    public BigPercentageBarLineView(Context context, AttributeSet attrs) {
         super(context, attrs);
         init();
     }
 
-    public BigStackedBarLineView(Context context, AttributeSet attrs, int defStyleAttr) {
+    public BigPercentageBarLineView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         init();
     }
 
-    private void init() {
-        p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setStyle(Paint.Style.FILL);
+    void init() {
+        super.init();
 
         setPadding(Utils.dpToPx(24), 0, Utils.dpToPx(24), 0);
-        borderW = Utils.dpToPx(6);
 
-        fp = new Paint();
-        fp.setStyle(Paint.Style.FILL);
-
-        fp2 = new Paint();
-        fp2.setStyle(Paint.Style.FILL);
-
-        colorAnimator.setDuration(150);
-        colorAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-            @Override
-            public void onAnimationUpdate(ValueAnimator animation) {
-                fp2.setAlpha((int) animation.getAnimatedValue());
-                invalidate();
-            }
-        });
+        p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setStyle(Paint.Style.FILL);
 
         setOnTouchListener(new OnTouchListener() {
             private float startPressX = 0f;
@@ -104,112 +91,184 @@ public class BigStackedBarLineView extends View {
                 int paddingEnd = getPaddingRight();
 
                 int w = getWidth() - paddingStart - paddingEnd - 2 * borderW;
-                float startBorder = w * fromX + borderW + paddingStart;
-                float endBorder = Math.min(w * toX, w) + borderW + paddingStart;
 
-                if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    startY = event.getY();
-                    getParent().requestDisallowInterceptTouchEvent(true);
+                if (state == WHOLE) {
+                    float startBorder = w * fromX + borderW + paddingStart;
+                    float endBorder = Math.min(w * toX, w) + borderW + paddingStart;
+                    if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                        startY = event.getY();
+                        getParent().requestDisallowInterceptTouchEvent(true);
 
-                    float minDist = Math.min(borderW, endBorder - startBorder);
-                    if (event.getX() > startBorder - 3 * borderW
-                            && event.getX() < startBorder + minDist) {
-                        isStartPressed = true;
-                        //Log.v("BigLineBorderView", "pressed startBorder");
-                    } else if (event.getX() > endBorder - minDist
-                            && event.getX() < endBorder + 3 * borderW) {
-                        isEndPressed = true;
-                        //Log.v("BigLineBorderView", "pressed endBorder");
-                    } else if (event.getX() > startBorder + minDist
-                            && event.getX() < endBorder - minDist) {
-                        isInsidePressed = true;
-                        //Log.v("BigLineBorderView", "pressed inside");
-                    } else {
-                        //Log.v("BigLineBorderView", "pressed outside");
-                    }
-                    startPressX = event.getX();
-                    startFromX = fromX;
-                    startToX = toX;
-                    //Log.v("BigLineBorderView", "startPressX=" + startPressX);
-                    //Log.v("BigLineBorderView", "startFromX=" + startFromX);
-                    //Log.v("BigLineBorderView", "startBorder=" + startBorder);
-                    //drawPic();
-                    if (isStartPressed || isInsidePressed || isEndPressed) {
-                        colorAnimator.setIntValues(MIN_P_ALPHA, MAX_P_ALPHA);
-                        colorAnimator.start();
-                    }
-                    prevX = startPressX;
-                } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
-                    if (Math.abs(event.getY() - startY) > Utils.dpToPx(30)) {
-                        getParent().requestDisallowInterceptTouchEvent(false);
-                    }
-
-                    //Log.v("BigLineBorderView", "event.getX()=" + event.getX());
-                    //Log.v("BigLineBorderView", "toX=" + toX);
-                    //Log.v("BigLineBorderView", "fromX=" + fromX);
-                    float diff = (event.getX() - startPressX) / w;
-
-                    if (isStartPressed) {
-                        float newFromX = startFromX + diff;
-                        setFrom(Math.min(newFromX, toX - minFraction));
-                        setTo(toX);
-                    } else if (isEndPressed) {
-                        float newToX = startToX + diff;
-                        setTo(Math.max(newToX, fromX + minFraction));
-                        setFrom(fromX);
-                    } else if (isInsidePressed) {
-                        float newFromX = startFromX + diff;
-                        float newToX = startToX + diff;
-                        //Log.v("BigLineBorderView", "newToX=" + newToX);
-                        //Log.v("BigLineBorderView", "newFromX=" + newFromX);
-                        if (newFromX < 0 - fromLimit) {
-                            newFromX = -fromLimit;
-                            newToX = newFromX - startFromX + startToX;
-                        } else if (newToX > 1f + fromLimit) {
-                            newToX = 1f + fromLimit;
-                            newFromX = newToX - startToX + startFromX;
+                        float minDist = Math.min(borderW, endBorder - startBorder);
+                        if (event.getX() > startBorder - 3 * borderW
+                                && event.getX() < startBorder + borderW + minDist) {
+                            isStartPressed = true;
+                            //Log.v("BigLineBorderView", "pressed startBorder");
+                        } else if (event.getX() > endBorder - borderW - minDist
+                                && event.getX() < endBorder + 2 * borderW) {
+                            isEndPressed = true;
+                            //Log.v("BigLineBorderView", "pressed endBorder");
+                        } else if (event.getX() > startBorder + borderW + minDist
+                                && event.getX() < endBorder - borderW - minDist) {
+                            isInsidePressed = true;
+                            //Log.v("BigLineBorderView", "pressed inside");
+                        } else {
+                            //Log.v("BigLineBorderView", "pressed outside");
                         }
-                        setFrom(newFromX);
-                        setTo(newToX);
-                    }
-
-                    boolean wasToRight = toRight;
-                    toRight = event.getX() - prevX > 0;
-                    if (wasToRight != toRight) {
                         startPressX = event.getX();
                         startFromX = fromX;
                         startToX = toX;
-                    }
+                        //Log.v("BigLineBorderView", "startPressX=" + startPressX);
+                        //Log.v("BigLineBorderView", "startFromX=" + startFromX);
+                        //Log.v("BigLineBorderView", "startBorder=" + startBorder);
+                        //drawPic();
+                        prevX = startPressX;
+                    } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                        if (Math.abs(event.getY() - startY) > Utils.dpToPx(30)) {
+                            getParent().requestDisallowInterceptTouchEvent(false);
+                        }
 
-                    prevX = event.getX();
-                } else if (event.getAction() == MotionEvent.ACTION_CANCEL
-                        || event.getAction() == MotionEvent.ACTION_UP) {
-                    if (colorAnimator.isStarted()) {
-                        colorAnimator.cancel();
+                        //Log.v("BigLineBorderView", "event.getX()=" + event.getX());
+                        //Log.v("BigLineBorderView", "toX=" + toX);
+                        //Log.v("BigLineBorderView", "fromX=" + fromX);
+
+                        float diff = (event.getX() - startPressX) / w;
+                        float m = 2f * borderW / w;
+                        if (isStartPressed) {
+                            float newFromX = startFromX + diff;
+                            setFrom(Math.min(newFromX, toX - m));
+                            setTo(toX);
+                        } else if (isEndPressed) {
+                            float newToX = startToX + diff;
+                            setTo(Math.max(newToX, fromX + m));
+                            setFrom(fromX);
+                        } else if (isInsidePressed) {
+                            float newFromX = startFromX + diff;
+                            float newToX = startToX + diff;
+                            //Log.v("BigLineBorderView", "newToX=" + newToX);
+                            //Log.v("BigLineBorderView", "newFromX=" + newFromX);
+                            if (newFromX < 0 - fromLimit) {
+                                newFromX = -fromLimit;
+                                newToX = newFromX - startFromX + startToX;
+                            } else if (newToX > 1f + fromLimit) {
+                                newToX = 1f + fromLimit;
+                                newFromX = newToX - startToX + startFromX;
+                            }
+                            setFrom(newFromX);
+                            setTo(newToX);
+                        }
+
+                        boolean wasToRight = toRight;
+                        toRight = event.getX() - prevX > 0;
+                        if (wasToRight != toRight) {
+                            startPressX = event.getX();
+                            startFromX = fromX;
+                            startToX = toX;
+                        }
+
+                        prevX = event.getX();
+                    } else if (event.getAction() == MotionEvent.ACTION_CANCEL
+                            || event.getAction() == MotionEvent.ACTION_UP) {
+                        getParent().requestDisallowInterceptTouchEvent(false);
+                        isStartPressed = false;
+                        isEndPressed = false;
+                        isInsidePressed = false;
+                    } else {
+                        getParent().requestDisallowInterceptTouchEvent(false);
                     }
-                    if (isStartPressed || isEndPressed || isInsidePressed) {
-                        colorAnimator.setIntValues(MAX_P_ALPHA, MIN_P_ALPHA);
-                        colorAnimator.start();
+                    return true;
+                } else if (state == DETAILED) {
+                    float startBorder = w * fromXDetailed + borderW + paddingStart;
+                    float endBorder = Math.min(w * toXDetailed, w) + borderW + paddingStart;
+                    if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                        startY = event.getY();
+                        getParent().requestDisallowInterceptTouchEvent(true);
+
+                        float minDist = Math.min(borderW, endBorder - startBorder);
+                        if (event.getX() > startBorder - 3 * borderW
+                                && event.getX() < startBorder + borderW + minDist) {
+                            isStartPressed = true;
+                            //Log.v("BigLineBorderView", "pressed startBorder");
+                        } else if (event.getX() > endBorder - borderW - minDist
+                                && event.getX() < endBorder + 2 * borderW) {
+                            isEndPressed = true;
+                            //Log.v("BigLineBorderView", "pressed endBorder");
+                        } else if (event.getX() > startBorder + borderW + minDist
+                                && event.getX() < endBorder - borderW - minDist) {
+                            isInsidePressed = true;
+                            //Log.v("BigLineBorderView", "pressed inside");
+                        } else {
+                            //Log.v("BigLineBorderView", "pressed outside");
+                        }
+                        startPressX = event.getX();
+                        startFromX = fromXDetailed;
+                        startToX = toXDetailed;
+                        //Log.v("BigLineBorderView", "startPressX=" + startPressX);
+                        Log.v("BigLineBorderView", "startFromX=" + startFromX);
+                        Log.v("BigLineBorderView", "startToX=" + startToX);
+                        //Log.v("BigLineBorderView", "startBorder=" + startBorder);
+                        //drawPic();
+                        prevX = startPressX;
+                    } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                        if (Math.abs(event.getY() - startY) > Utils.dpToPx(30)) {
+                            getParent().requestDisallowInterceptTouchEvent(false);
+                        }
+
+                        //Log.v("BigLineBorderView", "event.getX()=" + event.getX());
+                        //Log.v("BigLineBorderView", "toX=" + toX);
+                        //Log.v("BigLineBorderView", "fromX=" + fromX);
+                        float diff = (event.getX() - startPressX) / w;
+                        Log.v("BigLineBorderView", "diff=" + diff);
+
+                        if (isStartPressed) {
+                            float newFromX = startFromX + diff;
+                            setFromDetailed(Math.min(newFromX, toXDetailed));
+                            setToDetailed(toXDetailed);
+                        } else if (isEndPressed) {
+                            float newToX = startToX + diff;
+                            setToDetailed(Math.max(newToX, fromXDetailed));
+                            setFromDetailed(fromXDetailed);
+                        } else if (isInsidePressed) {
+                            float newFromX = startFromX + diff;
+                            float newToX = startToX + diff;
+                            //Log.v("BigLineBorderView", "newToX=" + newToX);
+                            //Log.v("BigLineBorderView", "newFromX=" + newFromX);
+                            if (newFromX < 0 - fromLimit) {
+                                newFromX = -fromLimit;
+                                newToX = newFromX - startFromX + startToX;
+                            } else if (newToX > 1f + fromLimit) {
+                                newToX = 1f + fromLimit;
+                                newFromX = newToX - startToX + startFromX;
+                            }
+                            float oldFromX = fromX;
+                            float oldFromXDetailed = fromXDetailed;
+                            int oldIndex = fromDetailedIndex;
+                            setFromDetailed(newFromX);
+                            if (oldIndex != fromDetailedIndex) {
+                                toXDetailed += fromXDetailed - oldFromXDetailed;
+                                toX += fromX - oldFromX;
+                                toDetailedIndex += fromDetailedIndex - oldIndex;
+
+                                for (MoveListener listener : listeners) {
+                                    listener.onUpdateToIndex(toDetailedIndex);
+                                }
+                                invalidate();
+                            }
+                        }
+                    } else if (event.getAction() == MotionEvent.ACTION_CANCEL
+                            || event.getAction() == MotionEvent.ACTION_UP) {
+                        getParent().requestDisallowInterceptTouchEvent(false);
+                        isStartPressed = false;
+                        isEndPressed = false;
+                        isInsidePressed = false;
+                    } else {
+                        getParent().requestDisallowInterceptTouchEvent(false);
                     }
-                    getParent().requestDisallowInterceptTouchEvent(false);
-                    isStartPressed = false;
-                    isEndPressed = false;
-                    isInsidePressed = false;
-                } else {
-                    getParent().requestDisallowInterceptTouchEvent(false);
+                    return true;
                 }
-                return true;
+                return false;
             }
         });
-    }
-
-    void setChartForegroundColor(int color) {
-        fp.setColor(color);
-    }
-
-    void setChartForegroundBorderColor(int color) {
-        fp2.setColor(color);
-        fp2.setAlpha(MIN_P_ALPHA);
     }
 
     @Override
@@ -222,65 +281,23 @@ public class BigStackedBarLineView extends View {
         int paddingTop = getPaddingTop();
         int paddingBottom = getPaddingBottom();
 
-        int w = getWidth() - paddingStart - paddingEnd - 2 * Utils.dpToPx(7);
-        int h = getHeight() - paddingTop - paddingBottom - Utils.dpToPx(5);
-
-        //canvas.clipRect(paddingStart, paddingTop, getWidth() - paddingEnd,
-        //        getHeight() - paddingBottom);
-
         if (data.columns.length == 0) return;
 
-        if (step0Time != 0L) {
-            step0 = (long) (step0k * (time - step0Time) + step0b);
-            if (step0Down) {
-                step0 = Math.min(step0, (long) (maxY * 0.7f / 5f));
-            } else {
-                step0 = Math.max(step0, (long) (maxY * 0.7f / 5f));
-            }
-            //Log.v("BigLineView", "maxY=" + maxY + " step0=" + step0);
-        }
+        int w = getWidth() - paddingStart - paddingEnd - 2 * borderW;
 
-        drawLines(canvas, time, w, h, paddingStart + Utils.dpToPx(7), paddingTop,
-                paddingEnd + Utils.dpToPx(7));
-
-        w = getWidth() - paddingStart - paddingEnd - 2 * borderW;
         float startBorder = w * fromX + borderW;
         float endBorder = w * toX + borderW;
 
-        if (borderW < startBorder - borderW) {
-            canvas.drawRect(paddingStart + borderW, paddingTop,
-                    paddingStart + startBorder - borderW, getHeight() - paddingBottom, fp);
-        }
-        if (paddingStart + endBorder + borderW < getWidth() - paddingEnd - borderW) {
-            canvas.drawRect(paddingStart + endBorder + borderW, paddingTop,
-                    getWidth() - paddingEnd - borderW, getHeight() - paddingBottom, fp);
+        if (state == WHOLE || state == ANIMATING) {
+            drawLines(canvas, time, fromIndex, toIndex);
+        } else if (state == DETAILED) {
+            drawLinesDetailed(canvas, time, fromIndex, toIndex);
+            startBorder = w * fromXDetailed + borderW;
+            endBorder = w * toXDetailed + borderW;
         }
 
-        //if (isStartPressed) {
-        //    m.reset();
-        //    m.postScale(toX - fromX, 1f);
-        //    m.postTranslate(startBorder, 0);
-        //    shader.setLocalMatrix(m);
-        //} else if (isEndPressed) {
-        //    m.reset();
-        //    m.postScale(-1, 1, w / 2f, h / 2f);
-        //    m.postScale(toX - fromX, 1f);
-        //    m.postTranslate(startBorder, 0);
-        //    shader.setLocalMatrix(m);
-        //} else if (isInsidePressed) {
-        //    m.reset();
-        //    m.postTranslate(w, 0);
-        //    shader.setLocalMatrix(m);
-        //}
-
-        canvas.drawRect(paddingStart + startBorder - borderW, paddingTop,
-                paddingStart + startBorder, getHeight() - paddingBottom, fp2);
-        canvas.drawRect(paddingStart + endBorder, paddingTop, paddingStart + endBorder + borderW,
-                getHeight() - paddingBottom, fp2);
-        canvas.drawRect(paddingStart + startBorder, paddingTop, paddingStart + endBorder,
-                paddingTop + Utils.dpToPx(2), fp2);
-        canvas.drawRect(paddingStart + startBorder, getHeight() - paddingBottom - Utils.dpToPx(2),
-                paddingStart + endBorder, getHeight() - paddingBottom, fp2);
+        drawBorder(canvas, startBorder, endBorder, paddingStart, paddingTop, paddingEnd,
+                paddingBottom);
 
         for (int j = 1; j < data.columns.length; j++) {
             Long lineTime = lineToTime.get(j);
@@ -293,14 +310,9 @@ public class BigStackedBarLineView extends View {
             }
         }
 
-        if (time - step0Time > ANIMATION_DURATION) {
-            step0Time = 0L;
-            step0 = (long) (maxY * 0.7f / 5f);
-        }
-
         //Log.v("BigLineView", "time=" + (System.currentTimeMillis() - time) + "ms");
 
-        if (lineToTime.size() != 0 || step0Time != 0L) {
+        if (lineToTime.size() != 0) {
             invalidate();
         }
 
@@ -312,13 +324,145 @@ public class BigStackedBarLineView extends View {
         //        paddingStart + endBorder + 3 * borderW, h, p);
     }
 
-    private void drawLines(Canvas canvas, long time, int w, int h, int paddingStart, int paddingTop,
-            int paddingEnd) {
+    void drawLines(Canvas canvas, long time, int fromIndex, int toIndex) {
+        int paddingStart = getPaddingLeft();
+        int paddingEnd = getPaddingRight();
+        int paddingTop = getPaddingTop();
+        int paddingBottom = getPaddingBottom();
+
+        int w = getWidth() - paddingStart - paddingEnd - 2 * borderW;
+        int h = (getHeight() - paddingBottom - paddingTop - Utils.dpToPx(2));
+
         Data.Column columnX = data.columns[0];
 
-        int size = columnX.value.length;
+        for (int i = fromIndex; i < toIndex; ++i) {
+            long sum = 0;
+            for (int j = 1; j < data.columns.length; j++) {
+                if (lineDisabled[j]) continue;
+
+                Data.Column column = data.columns[j];
+                float y = column.value[i];
+                if (lineToTime.get(j) != null) {
+                    float k;
+                    if (lineToUp.get(j)) {
+                        k = (time - lineToTime.get(j)) * 1f / ANIMATION_DURATION;
+                    } else {
+                        k = 1 + (lineToTime.get(j) - time) * 1f / ANIMATION_DURATION;
+                    }
+                    y *= Math.min(1, Math.max(0, k));
+                }
+
+                sum += y;
+            }
+            //Log.v("perc", "=====");
+            //Log.v("perc", "sum=" + sum);
+
+            float prevMinY = 0;
+            for (int j = 1; j < data.columns.length; j++) {
+                if (lineDisabled[j]) {
+                    coords[j][i] = prevMinY;
+                    continue;
+                }
+
+                Data.Column column = data.columns[j];
+                float y = column.value[i];
+                if (lineToTime.get(j) != null) {
+                    float k;
+                    if (lineToUp.get(j)) {
+                        k = (time - lineToTime.get(j)) * 1f / ANIMATION_DURATION;
+                    } else {
+                        k = 1 + (lineToTime.get(j) - time) * 1f / ANIMATION_DURATION;
+                    }
+                    y *= Math.min(1, Math.max(0, k));
+                }
+
+                float percentage = y * 100f / sum;
+                //Log.v("perc", "percentage=" + percentage);
+                prevMinY += percentage;
+                coords[j][i] = prevMinY;
+            }
+        }
+
+        for (int i = 1; i < data.columns.length; i++) {
+            paths[i - 1].reset();
+            float[] coord = coords[i];
+            int endedOn = fromIndex;
+            for (int j = fromIndex; j < toIndex; j += stepIndex) {
+                float x = Math.min(getWidth() - paddingEnd - borderW,
+                        Math.max(paddingStart + borderW,
+                                paddingStart + borderW + w * (columnX.value[j] - minX) * 1f / (maxX
+                                        - minX)));
+                if (j == fromIndex) {
+                    paths[i - 1].moveTo(x, Utils.dpToPx(1) + paddingTop + convertToY(h, coord[j]));
+                } else {
+                    paths[i - 1].lineTo(x, Utils.dpToPx(1) + paddingTop + convertToY(h, coord[j]));
+                }
+                endedOn = j;
+            }
+
+            {
+                float x = Math.min(getWidth() - paddingEnd - borderW,
+                        Math.max(paddingStart + borderW, paddingStart
+                                + borderW
+                                + w * (columnX.value[toIndex - 1] - minX) * 1f / (maxX - minX)));
+                paths[i - 1].lineTo(x,
+                        Utils.dpToPx(1) + paddingTop + convertToY(h, coord[toIndex - 1]));
+            }
+            coord = coords[i - 1];
+            {
+                float x = Math.min(getWidth() - paddingEnd - borderW,
+                        Math.max(paddingStart + borderW, paddingStart
+                                + borderW
+                                + w * (columnX.value[toIndex - 1] - minX) * 1f / (maxX - minX)));
+                paths[i - 1].lineTo(x,
+                        Utils.dpToPx(1) + paddingTop + convertToY(h, coord[toIndex - 1]));
+            }
+            for (int j = endedOn; j >= fromIndex; j -= stepIndex) {
+                float x = Math.min(getWidth() - paddingEnd - borderW,
+                        Math.max(paddingStart + borderW,
+                                paddingStart + borderW + w * (columnX.value[j] - minX) * 1f / (maxX
+                                        - minX)));
+                paths[i - 1].lineTo(x, Utils.dpToPx(1) + paddingTop + convertToY(h, coord[j]));
+            }
+        }
+
+        for (int k = 1; k < data.columns.length; k++) {
+            p.setColor(data.columns[k].color);
+            canvas.drawPath(paths[k - 1], p);
+        }
+    }
+
+    void drawLinesDetailed(Canvas canvas, long time, int fromIndex, int toIndex) {
+        int paddingStart = getPaddingLeft();
+        int paddingEnd = getPaddingRight();
+        int paddingTop = getPaddingTop();
+        int paddingBottom = getPaddingBottom();
+
+        int w = getWidth() - paddingStart - paddingEnd - 2 * borderW;
+        int h = (getHeight() - paddingBottom - paddingTop - Utils.dpToPx(1));
+
+        Data.Column columnX = data.columns[0];
 
         for (int i = fromIndex; i < toIndex; i += stepIndex) {
+            long sum = 0;
+            for (int j = 1; j < data.columns.length; j++) {
+                if (lineDisabled[j]) continue;
+
+                Data.Column column = data.columns[j];
+                float y = column.value[i];
+                if (lineToTime.get(j) != null) {
+                    float k;
+                    if (lineToUp.get(j)) {
+                        k = (time - lineToTime.get(j)) * 1f / ANIMATION_DURATION;
+                    } else {
+                        k = 1 + (lineToTime.get(j) - time) * 1f / ANIMATION_DURATION;
+                    }
+                    y *= Math.min(1, Math.max(0, k));
+                }
+
+                sum += y;
+            }
+
             long prevMinY = 0;
             for (int j = 1; j < data.columns.length; j++) {
                 if (lineDisabled[j]) continue;
@@ -328,60 +472,48 @@ public class BigStackedBarLineView extends View {
                 //Log.v("LineView", "lineToTime.get(j)=" + lineToTime.get(j));
                 p.setColor(column.color);
 
-                float y = column.value[i] + progress * diff.columns[j].value[i];
-                if (j == 1) {
-                    Log.v("lines", "y="
-                            + y
-                            + " diff="
-                            + diff.columns[j].value[i]
-                            + " progress="
-                            + progress);
-                }
+                float y = column.value[i];
                 if (lineToTime.get(j) != null) {
                     //int alpha;
                     if (lineToUp.get(j)) {
                         float k = Math.min(1,
                                 Math.max(0, (time - lineToTime.get(j)) * 1f / ANIMATION_DURATION));
-                        Log.v("SV", "k=" + k);
                         y *= k;
-                        //alpha = Math.min(
-                        //        (int) (1f * MAX_ALPHA / ANIMATION_DURATION * (time - lineToTime.get(
-                        //                j))), MAX_ALPHA);
                     } else {
                         float k = Math.min(1, Math.max(0,
                                 1 + (lineToTime.get(j) - time) * 1f / ANIMATION_DURATION));
-                        Log.v("SV", "k=" + k);
                         y *= k;
-
-                        //alpha = Math.max(
-                        //        (int) (1f * MAX_ALPHA / ANIMATION_DURATION * (lineToTime.get(j)
-                        //                - time + ANIMATION_DURATION)), 0);
                     }
-                    //p.setAlpha(alpha);
-                } else {
-                    //if (p.getAlpha() != MAX_ALPHA) p.setAlpha(MAX_ALPHA);
                 }
 
-                float startX = Math.min(getWidth() - paddingEnd, Math.max(paddingStart,
-                        paddingStart + w * (columnX.value[i] - minX) * 1f / (maxX - minX)));
-                float stopX = Math.min(getWidth() - paddingEnd, Math.max(paddingStart, paddingStart
-                        + w * (columnX.value[Math.min(i + stepIndex,
-                        data.columns[0].value.length - 1)] - minX) * 1f / (maxX - minX)));
-                float startY = Utils.dpToPx(2) + paddingTop + convertToY(h, prevMinY + (long) y);
-                float stopY = Utils.dpToPx(2) + paddingTop + convertToY(h, prevMinY);
+                float percentage = y * 100f / sum;
+
+                float startX = Math.min(getWidth() - paddingEnd - borderW,
+                        Math.max(paddingStart + borderW,
+                                paddingStart + borderW + w * (columnX.value[i] - minX) * 1f / (maxX
+                                        - minX)));
+                float stopX = Math.min(getWidth() - paddingEnd - borderW,
+                        Math.max(paddingStart + borderW, paddingStart
+                                + borderW
+                                + w * (columnX.value[Math.min(i + stepIndex,
+                                data.columns[0].value.length - 1)] - minX) * 1f / (maxX - minX)));
+                float startY = Utils.dpToPx(1) + paddingTop + convertToY(h, prevMinY + percentage);
+                if (j == data.columns.length - 1) {
+                    startY = Utils.dpToPx(1) + paddingTop + convertToY(h, 100);
+                }
+
+                float stopY = Utils.dpToPx(1) + paddingTop + convertToY(h, prevMinY);
 
                 canvas.drawRect((float) Math.floor(startX), startY, (float) Math.ceil(stopX), stopY,
                         p);
 
-                //canvas.drawLine(startX, 0, startX, h, fp2);
-
-                prevMinY += y;
+                prevMinY += percentage;
             }
         }
     }
 
-    private float convertToY(int h, long y) {
-        return h - h * y * 1f / (maxY + step0) - 1;
+    private float convertToY(int h, float y) {
+        return h - h * y * 1f / (maxY);
     }
 
     @Override
@@ -405,33 +537,7 @@ public class BigStackedBarLineView extends View {
         //fp3.setShader(shader);
     }
 
-    public void setDataWithoutUpdate(Data newData) {
-        diff.columns = new Data.Column[data.columns.length];
-        for (int i = 0; i < diff.columns.length; i++) {
-            Data.Column column = new Data.Column();
-            column.value = new long[data.columns[0].value.length];
-            diff.columns[i] = column;
-        }
-
-        this.data = newData;
-        lineDisabled = new boolean[data.columns.length];
-
-        Data.Column columnX = data.columns[0];
-        fromIndex = 0;
-        toIndex = columnX.value.length - 1;
-        minX = columnX.value[0];
-        maxX = columnX.value[columnX.value.length - 1];
-        minFraction = 12 * 60 * 60 * 1000f / (maxX - minX);
-    }
-
     public void setData(Data data) {
-        diff.columns = new Data.Column[data.columns.length];
-        for (int i = 0; i < diff.columns.length; i++) {
-            Data.Column column = new Data.Column();
-            column.value = new long[data.columns[0].value.length];
-            diff.columns[i] = column;
-        }
-
         this.data = data;
         lineDisabled = new boolean[data.columns.length];
 
@@ -440,67 +546,65 @@ public class BigStackedBarLineView extends View {
         toIndex = columnX.value.length - 1;
         minX = columnX.value[0];
         maxX = columnX.value[columnX.value.length - 1];
-        minFraction = 12 * 60 * 60 * 1000f / (maxX - minX);
 
-        //setFrom(0f);
-        //setTo(1f);
+        maxY = 100;
 
-        calculateMaxY();
+        coords = new float[data.columns.length][];
+        for (int i = 0; i < coords.length; i++) {
+            coords[i] = new float[columnX.value.length];
+        }
+        Arrays.fill(coords[0], 0f);
+        Arrays.fill(coords[data.columns.length - 1], 100);
+
+        paths = new Path[data.columns.length - 1];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = new Path();
+        }
 
         invalidate();
     }
 
-    Data diff = new Data();
-    float progress;
+    public void setDetailed(long time) {
+        oldFrom = fromX;
+        oldTo = toX;
 
-    public void setMinMaxX(long minX, long maxX, final Data data) {
-        //this.minX = minX;
-        //this.maxX = maxX;
+        state = ANIMATING;
+        final long newMinX = time - 1000 * 60 * 60 * 24 * 3;
+        final long newMaxX = time + 1000 * 60 * 60 * 24 * 4;
 
-        int fromIndex = Arrays.binarySearch(BigStackedBarLineView.this.data.columns[0].value, minX);
-        if (fromIndex < 0) fromIndex = -fromIndex - 1;
-        int toIndex = Arrays.binarySearch(BigStackedBarLineView.this.data.columns[0].value, maxX);
-        if (toIndex < 0) toIndex = -toIndex - 1;
-
-        PropertyValuesHolder minProp = PropertyValuesHolder.ofFloat("min", this.minX, minX);
-        PropertyValuesHolder maxProp = PropertyValuesHolder.ofFloat("max", this.maxX, maxX);
-        ValueAnimator valueAnimator = ValueAnimator.ofPropertyValuesHolder(minProp, maxProp);
+        PropertyValuesHolder minProp = PropertyValuesHolder.ofFloat("min", minX, newMinX);
+        PropertyValuesHolder maxProp = PropertyValuesHolder.ofFloat("max", maxX, newMaxX);
+        PropertyValuesHolder fromProp = PropertyValuesHolder.ofFloat("from", fromX, 3f / 7);
+        PropertyValuesHolder toProp = PropertyValuesHolder.ofFloat("to", toX, 4f / 7);
+        ValueAnimator valueAnimator =
+                ValueAnimator.ofPropertyValuesHolder(minProp, maxProp, fromProp, toProp);
         valueAnimator.setDuration(ANIMATION_DURATION);
         valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
-                BigStackedBarLineView.this.minX =
-                        ((Float) animation.getAnimatedValue("min")).longValue();
-                BigStackedBarLineView.this.maxX =
-                        ((Float) animation.getAnimatedValue("max")).longValue();
-                //BigStackedBarLineView.this.minX =
-                //        data.columns[0].value[BigStackedBarLineView.this.fromIndex];
-                //BigStackedBarLineView.this.maxX =
-                //        data.columns[0].value[BigStackedBarLineView.this.toIndex];
-                Log.v("lines", "minX="
-                        + BigStackedBarLineView.this.minX
-                        + " maxX="
-                        + BigStackedBarLineView.this.maxX);
-                calculateMaxY();
+                minX = ((Float) animation.getAnimatedValue("min")).longValue();
+                maxX = ((Float) animation.getAnimatedValue("max")).longValue();
+                fromX = (float) animation.getAnimatedValue("from");
+                toX = (float) animation.getAnimatedValue("to");
 
-                long start = System.currentTimeMillis();
-                Data.Column columnX = BigStackedBarLineView.this.data.columns[0];
+                fromIndex = Arrays.binarySearch(data.columns[0].value, minX);
+                if (fromIndex < 0) fromIndex = Math.max(-fromIndex - 2, 0);
+                toIndex = Arrays.binarySearch(data.columns[0].value, maxX);
+                if (toIndex < 0) toIndex = Math.min(-toIndex, data.columns[0].value.length);
+
+                //Log.v("lines", "minX=" + minX + " maxX=" + maxX);
+
+                Data.Column columnX = data.columns[0];
                 float diff = 0;
                 stepIndex = 0;
                 while (diff < getWidth() / 100f) {
-                    diff = getWidth() * (columnX.value[++stepIndex] - columnX.value[0]) * 1f / (
-                            BigStackedBarLineView.this.maxX
-                                    - BigStackedBarLineView.this.minX);
+                    diff = getWidth() * (columnX.value[++stepIndex] - columnX.value[0]) * 1f / (maxX
+                            - minX);
                 }
-                long end = System.currentTimeMillis();
-                Log.v("lines", (end - start) + "ms");
 
                 invalidate();
             }
         });
-
-        final int finalFromIndex = fromIndex;
-        Log.v("lines", "fromIndex=" + finalFromIndex);
         valueAnimator.addListener(new Animator.AnimatorListener() {
             @Override
             public void onAnimationStart(Animator animation) {
@@ -509,62 +613,15 @@ public class BigStackedBarLineView extends View {
 
             @Override
             public void onAnimationEnd(Animator animation) {
-                //BigStackedBarLineView.this.fromIndex = finalFromIndex;
-                //BigStackedBarLineView.this.toIndex = finalToIndex;
-                //calculateMaxY();
-                //invalidate();
+                state = DETAILED;
 
-                Data copy = new Data();
-                copy.columns = new Data.Column[data.columns.length];
-                copy.columns[0] = data.columns[0];
-                for (int i = 1; i < copy.columns.length; i++) {
-                    Data.Column column = new Data.Column();
-                    column.value = new long[data.columns[0].value.length];
-                    column.color = data.columns[i].color;
-                    column.name = data.columns[i].name;
-                    copy.columns[i] = column;
-                }
+                fromIndex = Arrays.binarySearch(data.columns[0].value, newMinX);
+                if (fromIndex < 0) fromIndex = Math.max(-fromIndex - 2, 0);
+                toIndex = Arrays.binarySearch(data.columns[0].value, newMaxX);
+                if (toIndex < 0) toIndex = Math.min(-toIndex, data.columns[0].value.length);
 
-                Data local = BigStackedBarLineView.this.data;
-
-                for (int j = 0; j < 7; j++) {
-                    for (int i = 1; i < copy.columns.length; i++) {
-                        Arrays.fill(copy.columns[i].value, j * 24, (j + 1) * 24,
-                                local.columns[i].value[finalFromIndex + j]);
-                    }
-                }
-
-                setDataWithoutUpdate(data);
-
-                for (int j = BigStackedBarLineView.this.fromIndex; j < BigStackedBarLineView.this.toIndex; ++j) {
-                    if (data.columns[0].value[j] < BigStackedBarLineView.this.minX || data.columns[0].value[j] > BigStackedBarLineView.this.maxX) continue;
-                    long sum = 0;
-                    for (int i = 1; i < data.columns.length; i++) {
-                        if (lineDisabled[i] || lineToTime.get(i) != null && !lineToUp.get(i)) continue;
-                        sum += data.columns[i].value[j];
-                    }
-                    maxY = Math.max(maxY, sum);
-                }
-
-
-                for (int i = 1; i < copy.columns.length; i++) {
-                    Data.Column columnCopy = copy.columns[i];
-                    Data.Column columnData = data.columns[i];
-                    for (int j = 0; j < columnCopy.value.length; j++) {
-                        diff.columns[i].value[j] = columnCopy.value[j] - columnData.value[j];
-                    }
-                }
-
-                ValueAnimator diffAnim = ValueAnimator.ofFloat(1, 0);
-                diffAnim.setDuration(ANIMATION_DURATION);
-                diffAnim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-                    @Override
-                    public void onAnimationUpdate(ValueAnimator animation) {
-                        progress = (float) animation.getAnimatedValue();
-                        invalidate();
-                    }
-                });
-                diffAnim.start();
+                setFromDetailed(0.49f);
+                setToDetailed(0.51f);
             }
 
             @Override
@@ -587,6 +644,108 @@ public class BigStackedBarLineView extends View {
         invalidate();
     }
 
+    int fromDetailedIndex = 0;
+    int toDetailedIndex = 0;
+
+    public void setFromDetailed(float from) {
+        Data.Column columnX = data.columns[0];
+        long minX1 = columnX.value[0];
+        long maxX1 = columnX.value[columnX.value.length - 1];
+
+        long fromTime = (long) (columnX.value[fromIndex] + from * (columnX.value[toIndex]
+                - columnX.value[fromIndex]));
+        long fromLeft = fromTime - 1000 * 60 * 60 * 23;
+        fromDetailedIndex = fromIndex;
+        int oldIndex = fromDetailedIndex;
+        float oldFromXDetailed = fromXDetailed;
+        for (int i = fromIndex; i <= toIndex; i++) {
+            //Log.v("perc", "from dim=" + (columnX.value[i] - minX) * 1f / (maxX - minX));
+            //Log.v("perc", "from left=" + fromLeft);
+            //Log.v("perc", "from time=" + fromTime);
+            //Log.v("perc", "time=" + columnX.value[i]);
+            if (columnX.value[i] > fromLeft && columnX.value[i] < fromTime + 1000 * 60 * 60) {
+                fromDetailedIndex = i;
+                fromX = (columnX.value[i] - minX1) * 1f / (maxX1 - minX1);
+                if (oldIndex != fromDetailedIndex) {
+                    fromXDetailed = (columnX.value[i] - minX) * 1f / (maxX - minX);
+                }
+                break;
+            }
+        }
+
+        if (oldIndex != fromDetailedIndex) {
+            //PropertyValuesHolder fromProp =
+            //        PropertyValuesHolder.ofFloat("from", oldFromXDetailed, fromXDetailed);
+            //ValueAnimator valueAnimator = ValueAnimator.ofPropertyValuesHolder(fromProp);
+            //valueAnimator.setDuration(ANIMATION_DURATION);
+            //valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            //    @Override
+            //    public void onAnimationUpdate(ValueAnimator animation) {
+            //        fromXDetailed = (float) animation.getAnimatedValue("from");
+            //        invalidate();
+            //    }
+            //});
+            //valueAnimator.start();
+
+            for (MoveListener listener : listeners) {
+                listener.onUpdateFromIndex(fromDetailedIndex);
+            }
+        }
+        log();
+
+        invalidate();
+    }
+
+    public void setToDetailed(float to) {
+        Data.Column columnX = data.columns[0];
+        long minX1 = columnX.value[0];
+        long maxX1 = columnX.value[columnX.value.length - 1];
+
+        long toTime = (long) (columnX.value[fromIndex] + to * (columnX.value[toIndex]
+                - columnX.value[fromIndex]));
+        long toRight = toTime + 1000 * 60 * 60 * 23;
+        toDetailedIndex = toIndex;
+
+        int oldIndex = toDetailedIndex;
+        float oldToXDetailed = toXDetailed;
+        for (int i = fromIndex; i <= toIndex; i++) {
+            //Log.v("perc", "to dim=" + (columnX.value[i] - minX) * 1f / (maxX - minX));
+            //Log.v("perc", "to left=" + toRight);
+            //Log.v("perc", "to time=" + toTime);
+            if (columnX.value[i] < toRight && columnX.value[i] > toTime - 1000 * 60 * 60) {
+                toDetailedIndex = i;
+                toX = (columnX.value[i] - minX1) * 1f / (maxX1 - minX1);
+                if (oldIndex != toDetailedIndex) {
+                    toXDetailed = (columnX.value[i] - minX) * 1f / (maxX - minX);
+                }
+                break;
+            }
+        }
+
+        if (oldIndex != toDetailedIndex) {
+            //PropertyValuesHolder toProp =
+            //        PropertyValuesHolder.ofFloat("to", oldToXDetailed, toXDetailed);
+            //ValueAnimator valueAnimator = ValueAnimator.ofPropertyValuesHolder(toProp);
+            //valueAnimator.setDuration(ANIMATION_DURATION);
+            //valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            //    @Override
+            //    public void onAnimationUpdate(ValueAnimator animation) {
+            //        Log.v("perc", "toxdet" + toXDetailed);
+            //        toXDetailed = (float) animation.getAnimatedValue("to");
+            //        invalidate();
+            //    }
+            //});
+            //valueAnimator.start();
+
+            for (MoveListener listener : listeners) {
+                listener.onUpdateToIndex(toDetailedIndex);
+            }
+        }
+        log();
+
+        invalidate();
+    }
+
     public void setFrom(float from) {
         Data.Column columnX = data.columns[0];
         long minX1 = columnX.value[0];
@@ -598,7 +757,20 @@ public class BigStackedBarLineView extends View {
         fromLimit = Math.min(limit * (toX1 - fromX1) / (maxX1 - minX1),
                 Utils.dpToPx(24) * 1f / (getWidth() + 2 * Utils.dpToPx(24)));
 
-        fromX = Math.max(-fromLimit, from);
+        if (state == WHOLE) {
+            fromX = Math.max(-fromLimit, from);
+        } else if (state == DETAILED) {
+            long fromTime = (long) (columnX.value[fromIndex] + from * (columnX.value[toIndex - 1]
+                    - columnX.value[fromIndex]));
+            long fromLeft = fromTime - 1000 * 60 * 60 * 24;
+            for (int i = fromIndex; i < toIndex; i++) {
+                if (columnX.value[i] > fromLeft && columnX.value[i] < fromTime) {
+                    fromX = (columnX.value[i] - minX1) * 1f / (maxX1 - minX1);
+                    fromXDetailed = (columnX.value[i] - minX) * 1f / (maxX - minX);
+                    break;
+                }
+            }
+        }
 
         //Log.v("BigLineView", "fromLimit=" + fromLimit);
         for (MoveListener listener : listeners) {
@@ -620,7 +792,20 @@ public class BigStackedBarLineView extends View {
         fromLimit = Math.min(limit * (toX1 - fromX1) / (maxX1 - minX1),
                 Utils.dpToPx(24) * 1f / (getWidth() + 2 * Utils.dpToPx(24)));
 
-        toX = Math.min(1 + fromLimit, to);
+        if (state == WHOLE) {
+            toX = Math.min(1 + fromLimit, to);
+        } else if (state == DETAILED) {
+            long toTime = (long) (columnX.value[fromIndex] + to * (columnX.value[toIndex - 1]
+                    - columnX.value[fromIndex]));
+            long toRight = toTime + 1000 * 60 * 60 * 24;
+            for (int i = fromIndex; i < toIndex; i++) {
+                if (columnX.value[i] < toRight && columnX.value[i] > toTime) {
+                    toX = (columnX.value[i] - minX1) * 1f / (maxX1 - minX1);
+                    toXDetailed = (columnX.value[i] - minX) * 1f / (maxX - minX);
+                    break;
+                }
+            }
+        }
 
         //Log.v("BigLineView", "toLimit=" + fromLimit);
         for (MoveListener listener : listeners) {
@@ -629,59 +814,6 @@ public class BigStackedBarLineView extends View {
         log();
 
         invalidate();
-    }
-
-    private void calculateMaxY() {
-        long maxY = 0;
-        for (int j = fromIndex; j < toIndex; ++j) {
-            if (data.columns[0].value[j] < minX || data.columns[0].value[j] > maxX) continue;
-            long sum = 0;
-            for (int i = 1; i < data.columns.length; i++) {
-                if (lineDisabled[i] || lineToTime.get(i) != null && !lineToUp.get(i)) continue;
-                sum += data.columns[i].value[j];
-            }
-            maxY = Math.max(maxY, sum);
-        }
-
-        if (maxY >= 133) {
-            long min = (long) (maxY * 10f / 11f);
-            long max = (long) (maxY * 50f / 51f);
-
-            int pow = 10;
-            while (true) {
-                long prevMax = max;
-                max = max - max % pow;
-                if (max < min) {
-                    maxY = prevMax;
-                    break;
-                }
-                pow *= 10;
-            }
-        } else if (maxY > 0) {
-            maxY = maxY - maxY % 10 + 10;
-        }
-
-        Log.v("lines", "maxY=" + maxY);
-        if (prevMaxY != maxY) {
-            long time = System.currentTimeMillis();
-            BigStackedBarLineView.this.maxY = maxY;
-
-            int prev;
-            if (step0Time == 0L) {
-                prev = (int) (prevMaxY * 0.7f / 5f + prevMaxY - maxY);
-            } else {
-                prev = (int) (prevMaxY + step0 - maxY);
-            }
-
-            int next = (int) (maxY * 0.7f / 5f);
-
-            step0Time = time;
-            step0k = (next - prev) * 1f / ANIMATION_DURATION;
-            step0b = prev;
-            step0Down = next > prev;
-
-            prevMaxY = maxY;
-        }
     }
 
     private void log() {
@@ -700,7 +832,6 @@ public class BigStackedBarLineView extends View {
         }
         lineToUp.put(index, checked);
         if (checked) lineDisabled[index] = false;
-        calculateMaxY();
         log();
         invalidate();
     }
@@ -713,9 +844,87 @@ public class BigStackedBarLineView extends View {
         listeners.clear();
     }
 
+    public void setWhole() {
+        state = ANIMATING;
+        fromX = (oldFrom);
+        toX = (oldTo);
+        Data.Column columnX = data.columns[0];
+        long newMinX = columnX.value[0];
+        long newMaxX = columnX.value[columnX.value.length - 1];
+
+        PropertyValuesHolder minProp = PropertyValuesHolder.ofFloat("min", minX, newMinX);
+        PropertyValuesHolder maxProp = PropertyValuesHolder.ofFloat("max", maxX, newMaxX);
+        PropertyValuesHolder fromProp = PropertyValuesHolder.ofFloat("from", fromXDetailed, fromX);
+        PropertyValuesHolder toProp = PropertyValuesHolder.ofFloat("to", toXDetailed, toX);
+
+        ValueAnimator valueAnimator =
+                ValueAnimator.ofPropertyValuesHolder(minProp, maxProp, fromProp, toProp);
+        valueAnimator.setDuration(ANIMATION_DURATION);
+        valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                minX = ((Float) animation.getAnimatedValue("min")).longValue();
+                maxX = ((Float) animation.getAnimatedValue("max")).longValue();
+                fromX = (float) animation.getAnimatedValue("from");
+                toX = (float) animation.getAnimatedValue("to");
+
+                fromIndex = Arrays.binarySearch(data.columns[0].value, minX);
+                if (fromIndex < 0) fromIndex = Math.max(-fromIndex - 2, 0);
+                toIndex = Arrays.binarySearch(data.columns[0].value, maxX);
+                if (toIndex < 0) toIndex = Math.min(-toIndex, data.columns[0].value.length);
+
+                //Log.v("lines", "minX=" + minX + " maxX=" + maxX);
+
+                Data.Column columnX = data.columns[0];
+                float diff = 0;
+                stepIndex = 0;
+                while (diff < getWidth() / 100f) {
+                    diff = getWidth() * (columnX.value[++stepIndex] - columnX.value[0]) * 1f / (maxX
+                            - minX);
+                }
+
+                invalidate();
+            }
+        });
+        valueAnimator.addListener(new Animator.AnimatorListener() {
+            @Override
+            public void onAnimationStart(Animator animation) {
+
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                state = WHOLE;
+                invalidate();
+            }
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+
+            }
+
+            @Override
+            public void onAnimationRepeat(Animator animation) {
+
+            }
+        });
+        valueAnimator.start();
+
+        //minFraction = 12 * 60 * 60 * 1000f / (maxX - minX);
+
+        //setFrom(0f);
+        //setTo(1f);
+
+        invalidate();
+    }
+
     interface MoveListener {
         void onUpdateFrom(float from);
 
+        void onUpdateFromIndex(int from);
+
         void onUpdateTo(float to);
+
+        void onUpdateToIndex(int to);
     }
 }
